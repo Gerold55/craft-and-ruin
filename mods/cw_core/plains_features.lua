@@ -1,0 +1,75 @@
+--========================================================
+-- cw_mapgen : Plains features (commented; enable when ready)
+--  Biome: plains  (Temp=0.8, Downfall=0.4, Precip=yes)
+--========================================================
+
+--[TREES]
+-- minetest.register_decoration({
+--   name = "cw_mapgen:plains_oak",
+--   deco_type = "schematic",
+--   place_on = { "cw_core:grass_block" },
+--   sidelen = 16,
+--   fill_ratio = 0.0065,
+--   biomes = { "plains" },
+--   y_min = 1, y_max = 31000,
+--   schematic = minetest.get_modpath("cw_mapgen").."/schems/oak_small.mts",
+--   flags = "place_center_x, place_center_z",
+--   rotation = "random",
+-- })
+--
+-- minetest.register_decoration({
+--   name = "cw_mapgen:plains_oak_large",
+--   deco_type = "schematic",
+--   place_on = { "cw_core:grass_block" },
+--   sidelen = 16,
+--   fill_ratio = 0.0022,
+--   biomes = { "plains" },
+--   y_min = 1, y_max = 31000,
+--   schematic = minetest.get_modpath("cw_mapgen").."/schems/oak_large.mts",
+--   flags = "place_center_x, place_center_z",
+--   rotation = "random",
+-- })
+--[/TREES]
+
+--[BEES]
+-- minetest.register_abm({
+--   label = "cw_mapgen:attach_bee_nests_on_oaks",
+--   nodenames = { "cw_core:oak_leaves" },
+--   interval = 15,
+--   chance   = 100, -- ~5% overall
+--   action = function(pos)
+--     if math.random(100) > 5 then return end
+--     local below = {x=pos.x, y=pos.y-1, z=pos.z}
+--     local n = minetest.get_node(below)
+--     if n.name == "cw_core:oak_leaves" then
+--       -- minetest.swap_node(below, { name = "cw_core:bee_nest" })
+--     end
+--   end
+-- })
+--[/BEES]
+
+--[FLOWERS]
+-- local flowers = {
+--   "cw_core:flower_dandelion", "cw_core:flower_poppy", "cw_core:flower_cornflower",
+--   "cw_core:flower_oxeye_daisy", "cw_core:flower_azure_bluet",
+--   "cw_core:flower_tulip_orange", "cw_core:flower_tulip_red",
+--   "cw_core:flower_tulip_pink", "cw_core:flower_tulip_white",
+-- }
+-- for _, fname in ipairs(flowers) do
+--   minetest.register_decoration({
+--     name = "cw_mapgen:plains_"..fname:gsub(":", "_"),
+--     deco_type = "simple",
+--     place_on = { "cw_core:grass_block" },
+--     sidelen = 16,
+--     noise_params = { offset=0, scale=0.005, spread={x=100,y=100,z=100}, seed=4242, octaves=1, persist=0.5 },
+--     biomes = { "plains" },
+--     decoration = fname,
+--     y_min = 1, y_max = 31000,
+--   })
+-- end
+--[/FLOWERS]
+
+--[VILLAGES]
+-- -- Hook your village placer here:
+-- -- cw_mapgen.place_plains_village(minp, maxp, seed)
+--[/VILLAGES]
