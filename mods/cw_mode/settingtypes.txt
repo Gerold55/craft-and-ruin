@@ -1,0 +1,24 @@
+# Cooldown between instant-digs to prevent multi-break on held punch (milliseconds)
+cw_mode.instant_dig_cooldown_ms (Instant dig cooldown) int 70 0 1000
+
+# Enforce global stack rules (64 for all, 16 for empty buckets)
+cw_mode.force_stack64 (Force global stack rules) bool true
+
+# When /cr_cheats on, which engine privs to grant (if available)
+cw_mode.cheats_grant_fast (Grant 'fast') bool true
+cw_mode.cheats_grant_fly (Grant 'fly') bool true
+cw_mode.cheats_grant_noclip (Grant 'noclip') bool true
+cw_mode.cheats_grant_give (Grant 'give') bool true
+cw_mode.cheats_grant_teleport (Grant 'teleport') bool true
+
+# In creative-like mode, taking from creative inventory gives only 1 item
+cw_mode.creative_take_one (Creative inventory gives 1 item) bool true
+
+# In creative-like mode, breaking blocks yields no drops
+cw_mode.creative_no_drops (No drops when breaking in creative) bool true
+
+# Clamp node stacks in creative-like mode to a single item in inventory
+cw_mode.creative_single_node_stacks (Single node stacks in creative) bool true
+
+# Keep the wielded node "infinite": after placing, restore the stack back to 1
+cw_mode.creative_infinite_place (Infinite node placing in creative) bool true

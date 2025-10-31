@@ -1,6 +1,7 @@
 -- cw_mapgen/init.lua
 local mp = minetest.get_modpath(minetest.get_current_modname())
-dofile(mp .. "/mapgen.lua")
+dofile(mp .. "/mapgen_singlenode.lua")
+--dofile(mp .. "/mapgen_v7.lua")
 dofile(mp .. "/grass_tint.lua")
 dofile(mp .. "/leaves_tint.lua")
 dofile(mp .. "/decor_postgen.lua")

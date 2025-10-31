@@ -136,6 +136,7 @@ register_staged_crop({
     "cw_farming_wheat_1.png", "cw_farming_wheat_2.png", "cw_farming_wheat_3.png", "cw_farming_wheat_4.png",
   },
   base_time = 110, -- slightly faster baseline
+  groups = { plant=1, cw_crop=1 },
   final_drops = {
     {items = {"cw_farming:wheat_item"}, rarity = 1},
     {items = {"cw_farming:wheat_item"}, rarity = 2},
@@ -156,6 +157,7 @@ register_staged_crop({
     "cw_farming_potato_0.png", "cw_farming_potato_1.png", "cw_farming_potato_2.png", "cw_farming_potato_3.png",
   },
   base_time = 120,
+  groups = { plant=1, cw_crop=1 },
   final_drops = {
     {items = {"cw_farming:potato_raw"}, rarity = 1},
     {items = {"cw_farming:potato_raw"}, rarity = 1},
@@ -175,6 +177,7 @@ register_staged_crop({
     "cw_farming_carrot_0.png", "cw_farming_carrot_1.png", "cw_farming_carrot_2.png", "cw_farming_carrot_3.png",
   },
   base_time = 120,
+  groups = { plant=1, cw_crop=1 },
   final_drops = {
     {items = {"cw_farming:carrot_item"}, rarity = 1},
     {items = {"cw_farming:carrot_item"}, rarity = 1},

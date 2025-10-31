@@ -53,6 +53,9 @@ end
 dofile(MP.."/nodes/beehive.lua")
 dofile(MP.."/mobs/passive_bee.lua")
 
+-- 2) Crop growth helper (advance exactly one stage on pollination)
+dofile(MP.."/crop_grow.lua")
+
 -- (Your honey bottle item stays in items/bottle_honey.lua)
 local items = MP.."/items/bottle_honey.lua"
 local f = io.open(items, "r"); if f then f:close(); dofile(items) end
