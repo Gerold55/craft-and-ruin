@@ -78,12 +78,25 @@ end
 -------------------- Per-player state -------------------
 local P = {}
 local function st(name)
-  P[name] = P[name] or {
-    tab=1, cat="blocks", csearch="",
-    scroll=0, rquery="",
-    pressed_book=false,
-  }
-  return P[name]
+    local player = minetest.get_player_by_name(name)
+    local creative = false
+
+    if minetest.is_creative_enabled then
+        creative = minetest.is_creative_enabled(name)
+    elseif minetest.settings then
+        creative = minetest.settings:get_bool("creative_mode")
+    end
+
+    P[name] = P[name] or {
+        tab = creative and 2 or 1, -- go straight to creative tab
+        cat = "all",               -- default category = ALL
+        csearch = "",
+        scroll = 0,
+        rquery = "",
+        pressed_book = false,
+    }
+
+    return P[name]
 end
 minetest.register_on_leaveplayer(function(p) P[p:get_player_name()] = nil end)
 
@@ -411,6 +424,27 @@ fs = fs .. "listring[current_player;main]listring[current_player;craft]"
   return fs
 end
 
+-- Build current creative list + max row for scrolling
+local function creative_list_and_maxscroll(S)
+  local base = CATALOG[S.cat] or {}
+  local list = filter_items(base, S.csearch)
+  local total_rows = math.max(1, math.ceil(#list / GRID_COLS))
+  local max_scroll = math.max(0, total_rows - GRID_ROWS)
+  return list, max_scroll
+end
+
+-- Force scroll to an integer row within [0, max_scroll]
+local function clamp_scroll(v, max_scroll)
+  -- v can be "12", "val:12", "CHG:12" depending on engine
+  if type(v) == "string" then
+    v = tonumber(v) or tonumber(v:match("[-%d]+")) or 0
+  end
+  v = math.floor((v or 0) + 0.0001)
+  if v < 0 then v = 0 end
+  if v > max_scroll then v = max_scroll end
+  return v
+end
+
 -- ===================== Creative Tab (precise placement) ====================
 local function fs_creative(player, S)
   -- Permission check
@@ -427,11 +461,9 @@ local function fs_creative(player, S)
   end
 
   -- data
-  local base = CATALOG[S.cat] or {}
-  local list = filter_items(base, S.csearch)
-  local total_rows = math.max(1, math.ceil(#list / GRID_COLS))
-  local max_scroll = math.max(0, total_rows - GRID_ROWS)
-  if S.scroll > max_scroll then S.scroll = max_scroll end
+  local list, max_scroll = creative_list_and_maxscroll(S)
+if S.scroll > max_scroll then S.scroll = max_scroll end
+
 
   -- =================== Tunable anchors (edit these numbers) =================
   -- Search row (aligned to grid width)
@@ -651,11 +683,28 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
   if formname ~= "" then return false end
   local name = player:get_player_name()
   local S = st(name)
+  local name = player:get_player_name()
+local S = st(name)
+
+if (minetest.is_creative_enabled and minetest.is_creative_enabled(name))
+  or (minetest.settings and minetest.settings:get_bool("creative_mode"))
+then
+    S.tab = 2
+    S.cat = "all"
+else
+    S.tab = 1
+end
 
   if fields.cw_tabs then
     local n=tonumber(fields.cw_tabs)
-    if n and n>=1 and n<=3 then S.tab=n end
-  end
+    if n and n>=1 and n<=3 then
+        S.tab=n
+        if n == 2 then -- entering creative tab
+            S.cat = "all"
+            S.scroll = 0
+        end
+    end
+end
 
   -- Inventory: recipe button with pressed flash then open Recipes
   if fields.cw_open_recipes then
@@ -676,10 +725,10 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
   if fields.cw_csearch and fields.key_enter_field=="cw_csearch" then S.csearch=fields.cw_csearch or ""; S.scroll=0 end
   for _,c in ipairs(CATS) do if fields["cw_cat_"..c.id] then S.cat=c.id; S.scroll=0 end end
   if fields.cw_scroll then
-    local v = tonumber(fields.cw_scroll) or 0
-    if v < 0 then v = 0 end
-    S.scroll = v
-  end
+  -- Recompute list & max for the current filter/category before clamping
+  local _, max_scroll = creative_list_and_maxscroll(S)
+  S.scroll = clamp_scroll(fields.cw_scroll, max_scroll)
+end
   if S.tab==2 then
     local base=filter_items(CATALOG[S.cat] or {}, S.csearch)
     local slice=grid_slice_by_scroll(base, S.scroll)
@@ -712,6 +761,20 @@ minetest.register_chatcommand("inv", {
   description = "Open Cube_World inventory",
   func = function(name)
     local p = minetest.get_player_by_name(name)
-    if p then refresh(p) end
-  end
+    if p then
+        local S = st(name)
+
+        -- Auto-go to creative tab if allowed
+        if (minetest.is_creative_enabled and minetest.is_creative_enabled(name))
+          or (minetest.settings and minetest.settings:get_bool("creative_mode"))
+        then
+            S.tab = 2
+            S.cat = "all"
+        else
+            S.tab = 1
+        end
+
+        refresh(p)
+    end
+end
 })
