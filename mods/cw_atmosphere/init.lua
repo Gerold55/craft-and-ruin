@@ -1,5 +1,7 @@
 -- cw_atmosphere/init.lua — Minecraft-like sky & weather for Craft & Ruin
--- Engine clouds only. Rain/snow particles with storm/downpour density boosts (amount only).
+-- Engine clouds only (no particle cloud overlay).
+-- Rain/snow particles tuned for visibility; storms/downpour boost only AMOUNT.
+-- Blue-tinted rain like MC; stronger tint in downpour.
 -- Lightning with flash + distance-delayed thunder; optional fire on strike.
 -- Layered snow accumulation: 3 layers -> cw_core:snow_block (or default:snowblock).
 -- Textures: sun.png, moon_1_classic.png..moon_8_classic.png, cw_rain_drop.png, cw_snow_flake.png, cw_lightning.png
@@ -49,36 +51,41 @@ local PROFILES = {
   night_clear = { clouds = { height=140, thickness=12, density=0.18, color="#dfe7ff", speed={x=0, z=-1.0} } },
 }
 
--- Weather overlays (GLOBAL) — precip_amount_boost affects amounts ONLY
+-- Weather overlays (GLOBAL) — precip_amount_boost affects AMOUNT ONLY
 local WEATHER = {
   drizzle = {
-    priority=20, fx_rain=true, wind={x=-0.3, z=-0.4},
+    priority=10, fx_rain=true, wind={x=-0.3, z=-0.4},
     clouds_delta = { density=0.18, color="#d9dde2", thickness=6 },
-    precip_amount_boost = 1.0, -- unchanged
+    precip_amount_boost = 1.0, -- light
   },
   storm = {
     priority=50, fx_rain=true, thunder=true, daynight_lock=0.30,
     wind={x=-0.8, z=-0.6},
     clouds_target = { height=118, thickness=34, density=0.95, color="#8a919a", speed={x=0, z=-3.0} },
-    precip_amount_boost = 2.0, -- denser curtain (amount only)
+    precip_amount_boost = 2.5, -- dense curtain
   },
   downpour = {
     priority=60, fx_rain=true, thunder=true, daynight_lock=0.25,
     wind={x=-1.1, z=-0.8},
     clouds_target = { height=115, thickness=36, density=0.98, color="#777d86", speed={x=0, z=-3.2} },
-    precip_amount_boost = 3.0, -- very dense (amount only)
+    precip_amount_boost = 3.5, -- very dense
   },
 }
 
--- Rain particles (MC-visible; base values; storms just multiply AMOUNT)
+-- Rain particles (MC-visible; base amounts; storms/downpour multiply AMOUNT ONLY)
 local RAIN = {
   box_half = 24, start_y = 11,
-  amount_bg = 1600, amount_fg = 650,   -- base density (~2250); storm/downpour multiply these
+  amount_bg = 1800, amount_fg = 800,   -- base total ≈ 2600 (drizzle-ish)
   ttl_min = 0.65, ttl_max = 1.05,      -- crisp streaks
-  vy_min  = -24,  vy_max  = -16,       -- fall speed (unchanged by boosts)
-  size_bg_min = 5, size_bg_max = 10, -- width/height of sprite in world units
+  vy_min  = -24,  vy_max  = -16,       -- MC-like fall speed
+  size_bg_min = 2.2, size_bg_max = 2.8,
   size_fg_min = 2.8, size_fg_max = 3.6,
-  opacity = 230,                        -- base opacity; see spawn_rain for storm brighten
+  opacity = 230,                       -- base opacity
+  -- Blue tint (MC vibe): colorize adds blue, opacity keeps edges
+  tint_hex_light = "#6ea7ff",          -- storm
+  tint_hex_heavy = "#5e99ff",          -- downpour
+  tint_alpha_light = 110,              -- 0..255 (how blue it looks)
+  tint_alpha_heavy = 160,
 }
 
 -- Snow particles (MC-visible)
@@ -198,17 +205,15 @@ end
 local function apply_sky(player, tgt)
   player:set_sky({ type="regular", sky_color=SKY, clouds=true })
 
-  -- Sun
+  -- Sun (fixed: no boolean 'sunrise' field)
   if should_show_sun(tgt) then
     player:set_sun({
-      visible         = true,
-      texture         = TEX.sun,
-      scale           = 1.0,
-      sunrise         = true,
-      sunrise_visible = true,
+      visible = true,
+      texture = TEX.sun,
+      scale   = 1.0,
     })
   else
-    player:set_sun({ visible=false, sunrise=true, sunrise_visible=false })
+    player:set_sun({ visible=false })
   end
 
   -- Moon
@@ -266,19 +271,24 @@ local function clear_spawner_list(list)
 end
 
 local function spawn_rain(player, tgt, out_ids)
-  -- Determine AMOUNT intensity from active overlay (sizes/speeds are unchanged)
+  -- Amount intensity from active overlay (sizes/speeds unchanged)
   local amount_boost = 1.0
-  if cw_atmo and G.overlay and G.overlay.def and G.overlay.def.precip_amount_boost then
+  if G.overlay and G.overlay.def and G.overlay.def.precip_amount_boost then
     amount_boost = G.overlay.def.precip_amount_boost
   end
 
   local amt_bg = math.floor(RAIN.amount_bg * amount_boost)
   local amt_fg = math.floor(RAIN.amount_fg * amount_boost)
 
-  -- Visibility helpers (no size change): brighten/opaque in heavy weather
-  local heavy = (amount_boost >= 1.5)
+  local heavy = (amount_boost >= 1.5)           -- storms/downpour
+  local very_heavy = (amount_boost >= 3.0)      -- downpour
+
+  -- Build texture modifiers
   local tex_mod = "^[opacity:" .. tostring(heavy and 255 or RAIN.opacity)
   if heavy then tex_mod = tex_mod .. "^[brighten" end
+  local tint_hex  = very_heavy and RAIN.tint_hex_heavy or RAIN.tint_hex_light
+  local tint_alpha = very_heavy and RAIN.tint_alpha_heavy or RAIN.tint_alpha_light
+  tex_mod = tex_mod .. "^[colorize:" .. tint_hex .. ":" .. tostring(tint_alpha)
   local glow = heavy and 1 or 0
 
   -- background
@@ -345,7 +355,6 @@ local function spawn_snow(player, tgt, out_ids)
 end
 
 local function ensure_precip(player, pst, tgt)
-  -- Stop all if no precipitation
   if not tgt.fx_rain then
     clear_spawner_list(pst.fx.rain_ids)
     clear_spawner_list(pst.fx.snow_ids)
@@ -355,17 +364,11 @@ local function ensure_precip(player, pst, tgt)
   local cold = is_cold_biome(player:get_pos())
 
   if cold then
-    -- Snow on, rain off
     clear_spawner_list(pst.fx.rain_ids)
-    if #pst.fx.snow_ids == 0 then
-      spawn_snow(player, tgt, pst.fx.snow_ids)
-    end
+    if #pst.fx.snow_ids == 0 then spawn_snow(player, tgt, pst.fx.snow_ids) end
   else
-    -- Rain on, snow off
     clear_spawner_list(pst.fx.snow_ids)
-    if #pst.fx.rain_ids == 0 then
-      spawn_rain(player, tgt, pst.fx.rain_ids)
-    end
+    if #pst.fx.rain_ids == 0 then spawn_rain(player, tgt, pst.fx.rain_ids) end
   end
 end
 

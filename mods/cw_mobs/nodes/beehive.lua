@@ -1,12 +1,16 @@
 -- cw_mobs/nodes/beehive.lua
--- Minecraft-like beehive behavior without requiring the "default" mod.
+-- Beehive with autonomous release + always-exit-from-front.
+
+cw_mobs = rawget(_G, "cw_mobs") or {}
 
 local HIVE_NAME        = "cw_mobs:beehive"
 local HIVE_FULL_NAME   = "cw_mobs:beehive_full"
 
 local MAX_BEES         = 3
 local MAX_HONEY        = 5
-local RESPAWN_SECONDS  = 120 -- bees stay inside hive ~2 min (MC)
+local RESPAWN_SECONDS  = tonumber(minetest.settings:get("cw_mobs.hive_respawn_seconds")) or 120
+local TICK_SECONDS     = 2.0  -- node timer tick
+local CROWD_RADIUS     = 2.5  -- don't emit into a swarm cloud
 
 local ITEM_HONEY_BOTTLE   = "cw_mobs:bottle_honey"
 local ITEM_HONEYCOMB      = "cw_mobs:honeycomb"
@@ -15,27 +19,27 @@ local ITEM_SHEARS         = "cw_core:shears"
 
 local HONEYCOMB_MINMAX = {1, 3}
 
--- Textures you should provide in textures/
+-- Textures
 local TEX_FRONT      = "cw_beehive_front.png"
 local TEX_FRONT_FULL = "cw_beehive_front_full.png"
 local TEX_SIDE       = "cw_beehive_side.png"
 local TEX_TOP        = "cw_beehive_top.png"
 
--- Safe wood sounds (no dependency on 'default')
-local function wood_sounds()
-  -- If your game defines a global sound helper, use it; otherwise nil is fine.
-  if minetest.node_sound_wood_defaults then
-    return minetest.node_sound_wood_defaults()
-  end
-  -- Try to copy sounds from an existing wood node if present
-  local wood = minetest.registered_nodes["default:wood"]
-  if wood and wood.sounds then
-    return wood.sounds
-  end
-  return nil
+-- Optional weather hook
+local function bad_weather()
+  return cw_mobs and cw_mobs.is_bad_weather and cw_mobs.is_bad_weather() or false
+end
+local function is_day()
+  local t=minetest.get_timeofday(); return t>=0.2 and t<=0.8
 end
 
--- Check for campfire under hive (smoke calms bees)
+-- Sounds without default dep
+local function wood_sounds()
+  if minetest.node_sound_wood_defaults then return minetest.node_sound_wood_defaults() end
+  local wood = minetest.registered_nodes["default:wood"]
+  return wood and wood.sounds or nil
+end
+
 local function has_campfire_below(pos)
   for dy = 1, 3 do
     local p = {x=pos.x, y=pos.y-dy, z=pos.z}
@@ -47,20 +51,13 @@ local function has_campfire_below(pos)
   return false
 end
 
--------------------------
--- Hive API (used by bees)
--------------------------
+-- ===== API used by bees =====
 
--- Get hive front position + facing direction
 function cw_mobs.hive_entrance_point(hpos)
   local node = minetest.get_node(hpos)
-  if not node then return nil,nil end
-  local dir = minetest.facedir_to_dir(node.param2 or 0)
-  local gate = {
-    x = hpos.x + dir.x*0.55,
-    y = hpos.y + 0.25,
-    z = hpos.z + dir.z*0.55
-  }
+  local param2 = node and node.param2 or 0
+  local dir = minetest.facedir_to_dir(param2 or 0); dir = dir or {x=0,y=0,z=1}
+  local gate = { x = hpos.x + dir.x*0.55, y = hpos.y + 0.25, z = hpos.z + dir.z*0.55 }
   return gate, dir
 end
 
@@ -74,11 +71,6 @@ function cw_mobs.hive_front_gate_ok(hpos, bee_pos)
   return (lateral <= 0.55 and vy <= 0.60 and forward >= -0.25)
 end
 
-local function get_meta_counts(pos)
-  local m = minetest.get_meta(pos)
-  return m:get_int("honey"), m:get_int("residents")
-end
-
 local function set_honey(pos, v)
   local m=minetest.get_meta(pos); m:set_int("honey", v)
   local node=minetest.get_node(pos)
@@ -90,74 +82,65 @@ local function set_honey(pos, v)
 end
 
 local function inc_honey(pos, amt)
-  local h = minetest.get_meta(pos):get_int("honey")
+  local m = minetest.get_meta(pos)
+  local h = m:get_int("honey")
   h = math.min(MAX_HONEY, h + (amt or 1))
   set_honey(pos, h)
 end
 
--- Bee enters hive (removes entity, optionally adds honey, schedules exit)
+-- Enter hive: record resident, add honey if carrying, schedule next exit time
 function cw_mobs.hive_try_enter(hpos, bee_obj)
   local m = minetest.get_meta(hpos)
   local residents = m:get_int("residents")
   if residents >= MAX_BEES then return false end
 
-  local lua = bee_obj:get_luaentity()
+  local lua = bee_obj and bee_obj:get_luaentity() or nil
   if lua and lua.has_nectar and lua:has_nectar() then
     inc_honey(hpos, 1)
     if lua.clear_nectar then lua:clear_nectar() end
   end
 
   m:set_int("residents", residents + 1)
-  bee_obj:remove()
+  -- schedule autonomous exit using a timestamp, handled by on_timer
+  local next_exit = m:get_int("next_exit")
+  local now      = minetest.get_gametime()
+  if next_exit == 0 or next_exit < now then
+    m:set_int("next_exit", now + RESPAWN_SECONDS)
+  else
+    -- stagger exits: +RES/3 sec each resident
+    m:set_int("next_exit", next_exit + math.floor(RESPAWN_SECONDS / math.max(1, MAX_BEES)))
+  end
 
-  minetest.after(RESPAWN_SECONDS, function()
-    if not minetest.get_node_or_nil(hpos) then return end
-    local mm = minetest.get_meta(hpos)
-    local rr = mm:get_int("residents")
-    if rr > 0 then
-      mm:set_int("residents", rr-1)
-      local gate,dir = cw_mobs.hive_entrance_point(hpos)
-      if gate then
-        local spawn = {
-          x = gate.x + dir.x*0.8,
-          y = gate.y,
-          z = gate.z + dir.z*0.8
-        }
-        local obj = minetest.add_entity(spawn, "cw_mobs:bee")
-        if obj then
-          local e = obj:get_luaentity()
-          if e and e.set_home then e:set_home(hpos) end
-        end
-      end
-    end
-  end)
-
+  if bee_obj then bee_obj:remove() end
+  -- ensure timer is running
+  minetest.get_node_timer(hpos):start(TICK_SECONDS)
   return true
 end
 
------------------------------------
--- Node definition helper
------------------------------------
+-- Debug helper used by /hive_debug
+function cw_mobs.debug_hive(pos, playername)
+  local m = minetest.get_meta(pos)
+  local honey = m:get_int("honey")
+  local res   = m:get_int("residents")
+  local next_exit = m:get_int("next_exit")
+  local msg = ("Hive %s | Honey=%d/5 | Bees Inside=%d/3 | next_exit=%d")
+    :format(minetest.pos_to_string(pos), honey, res, next_exit)
+  if playername then minetest.chat_send_player(playername, msg) end
+  return honey, res
+end
+
+-- ===== Node registration =====
+
 local function register_hive(name, is_full)
-  -- Tile order for facedir nodes: {top, bottom, right, left, back, front}
-  local tiles = {
-    TEX_TOP,               -- top
-    TEX_TOP,               -- bottom
-    TEX_SIDE,              -- right
-    TEX_SIDE,              -- left
-    TEX_SIDE,              -- back
-    is_full and TEX_FRONT_FULL or TEX_FRONT, -- front
-  }
+  -- Tile order: {top, bottom, right, left, back, front}
+  local tiles = { TEX_TOP, TEX_TOP, TEX_SIDE, TEX_SIDE, TEX_SIDE, is_full and TEX_FRONT_FULL or TEX_FRONT }
 
   minetest.register_node(name, {
     description = is_full and "Beehive (Full)" or "Beehive",
     tiles = tiles,
     paramtype2 = "facedir",
     is_ground_content = false,
-    groups = {
-      choppy=2, oddly_breakable_by_hand=2,
-      not_in_creative_inventory = is_full and 1 or 0
-    },
+    groups = { choppy=2, oddly_breakable_by_hand=2, not_in_creative_inventory = is_full and 1 or 0 },
     sounds = wood_sounds(),
     drop = HIVE_NAME,
     stack_max = 99,
@@ -168,22 +151,64 @@ local function register_hive(name, is_full)
         m:set_string("init", "1")
         m:set_int("honey", is_full and MAX_HONEY or 0)
         m:set_int("residents", 0)
+        m:set_int("next_exit", 0)
+      end
+      minetest.get_node_timer(pos):start(TICK_SECONDS)
+
+      -- Seed residents once (spawn inside then enter)
+      minetest.after(0.25, function()
+        if not minetest.get_node_or_nil(pos) then return end
+        for i=1,MAX_BEES do
+          local e = minetest.add_entity({x=pos.x+0.5,y=pos.y+0.5,z=pos.z+0.5}, "cw_mobs:bee")
+          if e then
+            if not cw_mobs.hive_try_enter(pos, e) then
+              e:remove()
+            end
+          end
+        end
+      end)
+    end,
+
+    -- Node timer: autonomous release from the FRONT
+    on_timer = function(pos, elapsed)
+      local m = minetest.get_meta(pos)
+      local res = m:get_int("residents")
+      local next_exit = m:get_int("next_exit")
+      local now = minetest.get_gametime()
+
+      -- keep ticking
+      local keep = true
+
+      -- release conditions
+      if res > 0 and next_exit > 0 and now >= next_exit and is_day() and not bad_weather() then
+        -- small anti-crowd check to avoid stacking
+        local crowd = 0
+        for _,o in ipairs(minetest.get_objects_inside_radius(pos, CROWD_RADIUS)) do
+          local e=o:get_luaentity()
+          if e and e.name=="cw_mobs:bee" then crowd = crowd + 1 end
+        end
+        if crowd <= 6 then
+          -- spawn at front gate
+          local gate, dir = cw_mobs.hive_entrance_point(pos)
+          local spawn = gate and { x=gate.x + dir.x*0.85, y=gate.y, z=gate.z + dir.z*0.85 }
+                                or { x=pos.x+0.5, y=pos.y+0.5, z=pos.z+0.5 }
+          local o = minetest.add_entity(spawn, "cw_mobs:bee")
+          if o then
+            local L = o:get_luaentity()
+            if L and L.set_home then L:set_home(pos) end
+            o:set_velocity({x=(dir and dir.x or 0)*1.2, y=0.25, z=(dir and dir.z or 0)*1.2})
+            if L then L._no_home_until = now + 6; L._state="patrol"; L._path=nil end
+            m:set_int("residents", res - 1)
+          end
+          -- schedule next exit
+          m:set_int("next_exit", now + RESPAWN_SECONDS)
+        else
+          -- try again soon if crowded
+          m:set_int("next_exit", now + 5)
+        end
       end
 
-      -- Seed starting bees (they’ll enter immediately, then exit after RESPAWN_SECONDS)
-      minetest.after(0.5, function()
-        if not minetest.get_node_or_nil(pos) then return end
-        local function seed_once(delay)
-          minetest.after(delay, function()
-            if not minetest.get_node_or_nil(pos) then return end
-            local fake = minetest.add_entity({x=pos.x+0.5,y=pos.y+0.5,z=pos.z+0.5}, "cw_mobs:bee")
-            if fake then cw_mobs.hive_try_enter(pos, fake) end
-          end)
-        end
-        seed_once(0.0)
-        seed_once(1.0)
-        seed_once(2.0)
-      end)
+      return keep
     end,
 
     on_rightclick = function(pos, node, clicker, itemstack)
@@ -193,7 +218,7 @@ local function register_hive(name, is_full)
       local honey = m:get_int("honey")
       local calm = has_campfire_below(pos)
 
-      -- Bottle honey (requires full hive)
+      -- Bottle honey (only when full)
       if name == ITEM_GLASS_BOTTLE and honey >= MAX_HONEY then
         itemstack:take_item(1)
         local inv = clicker:get_inventory()
@@ -210,7 +235,7 @@ local function register_hive(name, is_full)
         return itemstack
       end
 
-      -- Shears for honeycomb (requires full hive)
+      -- Shears → honeycomb (only when full)
       if name == ITEM_SHEARS and honey >= MAX_HONEY then
         local cnt = math.random(HONEYCOMB_MINMAX[1], HONEYCOMB_MINMAX[2])
         local comb = ItemStack(ITEM_HONEYCOMB.." "..cnt)
@@ -231,7 +256,6 @@ local function register_hive(name, is_full)
     end,
 
     after_dig_node = function(pos, oldnode, oldmeta, digger)
-      -- Anger nearby bees if no campfire smoke
       if has_campfire_below(pos) then return end
       for _,obj in ipairs(minetest.get_objects_inside_radius(pos, 12)) do
         local e=obj:get_luaentity()
@@ -246,3 +270,26 @@ end
 -- Register nodes
 register_hive(HIVE_NAME, false)
 register_hive(HIVE_FULL_NAME, true)
+
+-- LBM: ensure existing hives get residents + a running timer
+minetest.register_lbm({
+  name = "cw_mobs:beehive_self_heal",
+  nodenames = {HIVE_NAME, HIVE_FULL_NAME},
+  run_at_every_load = true,
+  action = function(pos, node)
+    local m = minetest.get_meta(pos)
+    if m:get_string("init") == "" then
+      m:set_string("init","1")
+      m:set_int("honey", (node.name==HIVE_FULL_NAME) and MAX_HONEY or 0)
+      m:set_int("residents", 0)
+      m:set_int("next_exit", 0)
+    end
+    minetest.get_node_timer(pos):start(TICK_SECONDS)
+    if m:get_int("residents") <= 0 then
+      local e = minetest.add_entity({x=pos.x+0.5,y=pos.y+0.5,z=pos.z+0.5}, "cw_mobs:bee")
+      if e and cw_mobs.hive_try_enter(pos, e) then
+        minetest.log("action", "[cw_mobs] LBM seeded a bee into hive @ "..minetest.pos_to_string(pos))
+      end
+    end
+  end
+})

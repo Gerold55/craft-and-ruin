@@ -5,6 +5,8 @@
 -- Crops to pollinate are matched by groups in cw_mobs.pollinate_plant (see bottom).
 
 --------------------------- Settings / Utils ----------------------------------
+cw_mobs = rawget(_G, "cw_mobs") or {}
+
 local function numset(k,d) local v=minetest.settings:get(k); v=(v=="" and nil) or v; return tonumber(v) or d end
 local function now() return minetest.get_gametime() end
 local function mix(a,b,t) return a + (b-a)*t end
@@ -73,8 +75,6 @@ local SEARCH_BEE_FIRST       = true   -- look near the bee, then near the hive
 local FLOWER_NAMES_FALLBACK  = { "cw_core:daisy", "cw_core:bluebell" } -- add more if needed
 
 ------------------------ Shared helpers / APIs --------------------------------
-cw_mobs = rawget(_G, "cw_mobs") or {}
-
 local function hive_entrance_point(pos)
   return cw_mobs.hive_entrance_point and cw_mobs.hive_entrance_point(pos) or nil, nil
 end
@@ -552,6 +552,18 @@ minetest.register_entity("cw_mobs:bee", {
       end
 
     elseif self._state=="return" then
+      -- Prevent instant re-entry after forced exit
+      if self._no_home_until and minetest.get_gametime() < self._no_home_until then
+        local c = self._home or self.object:get_pos()
+        local yaw=math.random()*math.pi*2; local r=1.5+math.random()*2.0
+        local tgt = {x=c.x+math.cos(yaw)*r, y=c.y+0.6, z=c.z+math.sin(yaw)*r}
+        self:_follow_path_or_goto(dtime, tgt, SPD_PATROL)
+        if self._anim ~= "fly" then
+          self.object:set_animation({x=FLY_F1,y=FLY_F2}, FPS, 0, true); self._anim = "fly"
+        end
+        return
+      end
+
       local entp, dir = hive_entrance_point(self._home)
       if entp and dir then
         local aim = { x = entp.x + dir.x * 0.18, y = entp.y, z = entp.z + dir.z * 0.18 }
@@ -603,3 +615,234 @@ local function try_pollinate_under(self)
     end
   end
 end
+
+-- Raycast: which node is the player looking at (server-safe)
+local function cw_get_look_node_pos(player, range)
+  range = range or 10
+  local p = player:get_pos(); if not p then return end
+  local eye_h = (player:get_properties() and player:get_properties().eye_height) or 1.5
+  local eye = {x=p.x, y=p.y + eye_h, z=p.z}
+  local dir = player:get_look_dir() or {x=0,y=0,z=1}
+  local dst = {x=eye.x+dir.x*range, y=eye.y+dir.y*range, z=eye.z+dir.z*range}
+  for hit in minetest.raycast(eye, dst, false, true) do
+    if hit.type == "node" then return hit.under end
+  end
+end
+
+-- Is there air (and headroom) here?
+local function cw_is_free_air(pos)
+  local n1 = minetest.get_node_or_nil(pos)
+  local n2 = minetest.get_node_or_nil({x=pos.x, y=pos.y+1, z=pos.z})
+  if not (n1 and n2) then return false end
+  local d1 = minetest.registered_nodes[n1.name]
+  local d2 = minetest.registered_nodes[n2.name]
+  local function open(def) return def and not def.walkable and (not def.liquidtype or def.liquidtype=="none") end
+  return open(d1) and open(d2)
+end
+
+-- Find a clean spawn point a little in front of the hive’s entrance
+local function cw_find_evac_spot(hpos, player_fwd)
+  local gate, dir = (cw_mobs and cw_mobs.hive_entrance_point) and cw_mobs.hive_entrance_point(hpos) or nil, nil
+  local base = gate or {x=hpos.x+0.5, y=hpos.y+0.5, z=hpos.z+0.5}
+
+  local fwd = dir or player_fwd or {x=0,y=0,z=1}
+  local len = math.sqrt((fwd.x or 0)^2 + (fwd.z or 0)^2)
+  if len < 1e-6 then fwd = {x=0,y=0,z=1} else fwd = {x=fwd.x/len, y=0, z=fwd.z/len} end
+
+  local offsets = {
+    {0.9, 0.0,  0.0}, {1.1, 0.0,  0.2}, {1.1, 0.0, -0.2},
+    {0.9, 0.3,  0.0}, {1.2, 0.3,  0.2}, {1.2, 0.3, -0.2},
+    {1.4, 0.6,  0.0}, {1.4, 0.6,  0.3}, {1.4, 0.6, -0.3},
+  }
+  for _,o in ipairs(offsets) do
+    local p = {
+      x = base.x + fwd.x*o[1] + fwd.z*o[3],
+      y = base.y + o[2],
+      z = base.z + fwd.z*o[1] - fwd.x*o[3]
+    }
+    p = {x = math.floor(p.x) + 0.5, y = math.floor(p.y) + 0.0, z = math.floor(p.z) + 0.5}
+    if cw_is_free_air(p) then return p, fwd end
+  end
+  return nil, fwd
+end
+
+-- ============== /hive_debug ==============
+minetest.register_chatcommand("hive_debug", {
+  description = "Show honey and resident bee count for the beehive you're looking at",
+  privs = {interact = true},
+  func = function(name)
+    local player = minetest.get_player_by_name(name)
+    if not player then return false, "Player not found." end
+
+    local pos = cw_get_look_node_pos(player, 10)
+    if not pos then return false, "Look at a beehive within ~10 nodes." end
+
+    local n = minetest.get_node(pos).name
+    if n ~= "cw_mobs:beehive" and n ~= "cw_mobs:beehive_full" then
+      return false, ("That is %s, not a beehive."):format(n)
+    end
+
+    if not (cw_mobs and cw_mobs.debug_hive) then
+      return false, "cw_mobs.debug_hive() is missing — ensure it's defined in nodes/beehive.lua."
+    end
+
+    local honey, residents = cw_mobs.debug_hive(pos, name)
+    return true, ("Hive %s | Honey=%d/5 | Bees Inside=%d/3")
+      :format(minetest.pos_to_string(pos), honey or 0, residents or 0)
+  end
+})
+
+-- ============== /hive_seed ==============
+minetest.register_chatcommand("hive_seed", {
+  description = "Force-seed up to 3 bees into the beehive you're looking at",
+  privs = {interact = true},
+  func = function(name)
+    local player = minetest.get_player_by_name(name)
+    if not player then return false, "Player not found." end
+
+    local pos = cw_get_look_node_pos(player, 10)
+    if not pos then return false, "Look at a beehive within ~10 nodes." end
+
+    local n = minetest.get_node(pos).name
+    if n ~= "cw_mobs:beehive" and n ~= "cw_mobs:beehive_full" then
+      return false, "Not a beehive."
+    end
+
+    local before = minetest.get_meta(pos):get_int("residents")
+
+    local function seed_one()
+      local e = minetest.add_entity({x=pos.x+0.5,y=pos.y+0.5,z=pos.z+0.5}, "cw_mobs:bee")
+      if e and cw_mobs and cw_mobs.hive_try_enter then
+        cw_mobs.hive_try_enter(pos, e)
+      end
+    end
+
+    seed_one(); seed_one(); seed_one()
+    local after = minetest.get_meta(pos):get_int("residents")
+    return true, ("Seeded hive: residents %d → %d"):format(before, after)
+  end
+})
+
+-- ============== /hive_force_exit (diagnostic + robust) ==============
+minetest.register_chatcommand("hive_force_exit", {
+  description = "Eject resident bees from the pointed beehive (shows pos & count, robust spawn).",
+  privs = {interact = true},
+  func = function(name)
+    local player = minetest.get_player_by_name(name)
+    if not player then return false, "Player not found." end
+
+    -- helpers from earlier (keep your cw_get_look_node_pos, cw_find_evac_spot)
+    local function say(msg) minetest.chat_send_player(name, msg) end
+
+    local hive_pos = cw_get_look_node_pos(player, 10)
+    if not hive_pos then return false, "Look at a beehive within ~10 nodes." end
+    local nn = minetest.get_node(hive_pos).name
+    if nn ~= "cw_mobs:beehive" and nn ~= "cw_mobs:beehive_full" then
+      return false, ("That is %s, not a beehive."):format(nn)
+    end
+
+    -- Read via the same path as /hive_debug so numbers match
+    local honey,residents = 0,0
+    if cw_mobs and cw_mobs.debug_hive then
+      honey, residents = cw_mobs.debug_hive(hive_pos)  -- also prints a line
+    else
+      local m = minetest.get_meta(hive_pos)
+      honey     = m:get_int("honey")
+      residents = m:get_int("residents")
+    end
+
+    say(("Hive %s | Honey=%d/5 | Bees Inside=%d/3"):format(minetest.pos_to_string(hive_pos), honey, residents))
+
+    if residents <= 0 then
+      -- Optional: spawn 1 test bee so you can visually confirm evac works
+      local spawn_base, fwd = cw_find_evac_spot(hive_pos, player:get_look_dir())
+      if spawn_base then
+        local o = minetest.add_entity(spawn_base, "cw_mobs:bee")
+        if o then
+          local L = o:get_luaentity()
+          if L and L.set_home then L:set_home(hive_pos) end
+          o:set_velocity({x=(fwd.x or 0)*1.5, y=0.4, z=(fwd.z or 0)*1.5})
+          if L then L._no_home_until = minetest.get_gametime() + 8; L._state="patrol"; L._path=nil end
+          return true, "No residents recorded, spawned 1 test bee in front of the hive."
+        end
+      end
+      return true, "No residents inside."
+    end
+
+    -- Zero out before spawning so hive doesn't grab them back immediately
+    local m = minetest.get_meta(hive_pos)
+    m:set_int("residents", 0)
+
+    local spawn_base, fwd = cw_find_evac_spot(hive_pos, player:get_look_dir())
+    if not spawn_base then
+      spawn_base = {x=hive_pos.x+0.5, y=hive_pos.y+1.2, z=hive_pos.z+0.5}
+      fwd = fwd or {x=0,y=0,z=1}
+    end
+
+    local released, failed = 0, 0
+    for i=1,residents do
+      local off = 0.20 * (i-1)
+      local p = {x=spawn_base.x + (fwd.x or 0)*off, y=spawn_base.y, z=spawn_base.z + (fwd.z or 0)*off}
+      local o = minetest.add_entity(p, "cw_mobs:bee")
+      if o then
+        local L = o:get_luaentity()
+        if L and L.set_home then L:set_home(hive_pos) end
+        o:set_velocity({x=(fwd.x or 0)*1.5, y=0.4, z=(fwd.z or 0)*1.5})
+        if L then L._no_home_until = minetest.get_gametime() + 8; L._state="patrol"; L._path=nil end
+        released = released + 1
+      else
+        failed = failed + 1
+        minetest.log("warning", "[cw_mobs] hive_force_exit: add_entity failed @"..minetest.pos_to_string(p))
+      end
+    end
+
+    local msg = ("Evacuated hive %s → released %d bee(s)%s.")
+      :format(minetest.pos_to_string(hive_pos), released, failed>0 and (" (failed: "..failed..")") or "")
+    minetest.log("action", "[cw_mobs] "..msg)
+    return true, msg
+  end
+})
+
+-- ============== /spawn_bee ==============
+minetest.register_chatcommand("spawn_bee", {
+  description = "Spawn a bee where you look and bind it to the nearest beehive (<=16m)",
+  privs = {interact = true},
+  func = function(name)
+    local player = minetest.get_player_by_name(name)
+    if not player then return false, "Player not found." end
+
+    local p = player:get_pos(); if not p then return false, "No position." end
+    local eye_h = (player:get_properties() and player:get_properties().eye_height) or 1.5
+    local eye = {x=p.x, y=p.y + eye_h, z=p.z}
+    local dir = player:get_look_dir() or {x=0,y=0,z=1}
+    local dst = {x = eye.x + dir.x*8, y = eye.y + dir.y*8, z = eye.z + dir.z*8}
+
+    local spawn_at = {x = eye.x + dir.x*2, y = eye.y, z = eye.z + dir.z*2}
+    for hit in minetest.raycast(eye, dst, false, true) do
+      if hit.type == "node" then
+        spawn_at = {
+          x = hit.intersection_point.x - dir.x*0.3,
+          y = hit.intersection_point.y - dir.y*0.3,
+          z = hit.intersection_point.z - dir.z*0.3
+        }
+        break
+      end
+    end
+
+    local o = minetest.add_entity(spawn_at, "cw_mobs:bee")
+    if not o then return false, "Failed to spawn bee (check model/texture paths)." end
+
+    local nearest, ndist
+    local minp = {x=spawn_at.x-16,y=spawn_at.y-16,z=spawn_at.z-16}
+    local maxp = {x=spawn_at.x+16,y=spawn_at.y+16,z=spawn_at.z+16}
+    for _,pos2 in ipairs(minetest.find_nodes_in_area(minp, maxp, {"cw_mobs:beehive","cw_mobs:beehive_full"})) do
+      local d = vector.distance(spawn_at, pos2)
+      if not ndist or d < ndist then ndist, nearest = d, pos2 end
+    end
+    local L = o:get_luaentity()
+    if nearest and L and L.set_home then L:set_home(nearest) end
+
+    return true, ("Spawned bee at %s%s")
+      :format(minetest.pos_to_string(spawn_at), nearest and (" (home "..minetest.pos_to_string(nearest)..")") or "")
+  end
+})
