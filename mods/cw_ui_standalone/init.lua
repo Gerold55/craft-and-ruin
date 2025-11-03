@@ -445,25 +445,128 @@ local function clamp_scroll(v, max_scroll)
   return v
 end
 
--- ===================== Creative Tab (precise placement) ====================
+-- ===================== Creative Tab (fixed & complete) ====================
 local function fs_creative(player, S)
-  -- Permission check
-  local allow = (minetest.is_creative_enabled
-                  and minetest.is_creative_enabled(player:get_player_name()))
-  if not allow and minetest.settings then
-    allow = minetest.settings:get_bool("creative_mode")
+ -- Require creative permission
+ local allow = (minetest.is_creative_enabled and minetest.is_creative_enabled(player:get_player_name()))
+ if not allow and minetest.settings then
+  allow = minetest.settings:get_bool("creative_mode")
+ end
+ if not allow then
+  return ("label[%0.2f,%0.2f;Creative requires Creative mode.]"):format(MARGIN_X, BASELINE_Y+0.3)
+       .. ("list[current_player;main;%0.2f,%0.2f;9,1;]"):format(HOTBAR_X, HOTBAR_Y)
+ end
+
+ -- Defaults
+ if not S.cat then S.cat = "all" end
+ if not S.scroll then S.scroll = 0 end
+
+ -- Build item list
+ local base = CATALOG[S.cat] or {}
+ local list = filter_items(base, S.csearch)
+ local total_rows = math.max(1, math.ceil(#list / GRID_COLS))
+ local max_scroll = math.max(0, total_rows - GRID_ROWS)
+ if S.scroll > max_scroll then S.scroll = max_scroll end
+
+ -- Start FS
+ local fs = ""
+ fs = fs .. page_bg(BG_CRE_TEX)
+
+ -- Search bar
+ local SEARCH_X = GRID_X
+ local SEARCH_Y = 0.50
+ local BTN_W = 1.20
+ local GAP_F = 0.20
+ local GAP_C = 0.10
+ local SEARCH_W = GRID_TOTAL_W - (BTN_W + BTN_W) - (GAP_F + GAP_C)
+
+ fs = fs ..
+ ("field[%0.2f,%0.2f;%0.2f,0.8;cw_csearch;;%s]field_close_on_enter[cw_csearch;false]")
+ :format(SEARCH_X, SEARCH_Y, SEARCH_W, minetest.formspec_escape(S.csearch or ""))
+
+ local find_x = SEARCH_X + SEARCH_W + GAP_F
+ local clear_x = find_x + BTN_W + GAP_C
+
+ fs = fs .. ("button[%0.2f,%0.2f;%0.1f,0.8;cw_csearch_go;Find]"):format(find_x, SEARCH_Y, BTN_W)
+ fs = fs .. ("button[%0.2f,%0.2f;%0.1f,0.8;cw_csearch_clear;Clear]"):format(clear_x, SEARCH_Y, BTN_W)
+
+ -- Category buttons
+ local cx = GRID_X
+ local CAT_Y = SEARCH_Y + 0.95
+ local CAT_GAP = 0.08
+ local CAT_H = 0.90
+ local CAT_W = (GRID_TOTAL_W - CAT_GAP * (#CATS - 1)) / #CATS
+
+ for _,c in ipairs(CATS) do
+  fs = fs .. ("button[%0.2f,%0.2f;%0.2f,%0.2f;cw_cat_%s;%s]")
+   :format(cx, CAT_Y, CAT_W, CAT_H, c.id, c.label)
+  cx = cx + CAT_W + CAT_GAP
+ end
+
+ -- Grid background
+ fs = fs .. ("box[%0.2f,%0.2f;%0.2f,%0.2f;#00000018]")
+  :format(GRID_X, GRID_Y - 0.06, GRID_TOTAL_W, GRID_H + 0.12)
+
+ -- Items grid
+ local slice = grid_slice_by_scroll(list, S.scroll)
+ local i = 0
+ for r = 0, GRID_ROWS - 1 do
+  for c = 0, GRID_COLS - 1 do
+   i = i + 1
+   local name = slice[i]
+   local xx = GRID_X + c*(CELL + GAP)
+   local yy = GRID_Y + r*(CELL + GAP)
+
+   fs = fs .. ("box[%0.2f,%0.2f;%0.2f,%0.2f;%s]"):format(xx, yy, CELL, CELL, SLOT)
+   if name then
+    local bid = "cw_item_" .. i
+    fs = fs .. ("item_image_button[%0.2f,%0.2f;%0.2f,%0.2f;%s;%s;]")
+     :format(xx, yy, CELL, CELL, name, bid)
+    local desc = (minetest.registered_items[name].description or name)
+    fs = fs .. ("tooltip[%s;%s]"):format(bid, minetest.formspec_escape(desc))
+   end
   end
+ end
 
-  -- If not allowed, just show a note + normal hotbar; no 'fs' here.
-  if not allow then
-    return ("label[%0.2f,%0.2f;Creative requires Creative mode.]"):format(MARGIN_X, BASELINE_Y+0.3)
-         .. ("list[current_player;main;%0.2f,%0.2f;9,1;]"):format(HOTBAR_X, HOTBAR_Y)
-  end
+ -- Scroll bar
+ local SB_X = GRID_X + GRID_TOTAL_W + 0.12
+ local SB_Y = GRID_Y - 0.06
+ local SB_W = 0.50
+ local SB_H = GRID_H + 0.12
 
-  -- data
-  local list, max_scroll = creative_list_and_maxscroll(S)
-if S.scroll > max_scroll then S.scroll = max_scroll end
+ fs = fs .. ("scrollbaroptions[max=%d;thumbsize=%d]")
+  :format(math.max(1,max_scroll), math.max(1,GRID_ROWS))
+ fs = fs .. ("scrollbar[%0.2f,%0.2f;%0.2f,%0.2f;vertical;cw_scroll;%d]")
+  :format(SB_X, SB_Y, SB_W, SB_H, S.scroll)
 
+ -- Scroll buttons (backup)
+ fs = fs .. ("button[%0.2f,%0.2f;0.6,0.6;cw_scroll_up;▲]"):format(SB_X, SB_Y - 0.7)
+ fs = fs .. ("button[%0.2f,%0.2f;0.6,0.6;cw_scroll_dn;▼]"):format(SB_X, SB_Y + SB_H + 0.1)
+
+ -- Creative hotbar
+ local HB_X = 0.85
+ local HB_Y = UI_H - 1.50
+ fs = fs .. ("list[current_player;main;%0.2f,%0.2f;9,1;]"):format(HB_X, HB_Y)
+
+ -- Invisible 1-slot trash to catch shift-click
+ local det_trash = ensure_trash(player)
+ fs = fs .. ("list[detached:%s;trash;-100,-100;1,1;]"):format(det_trash)
+ fs = fs .. ("listring[current_player;main]listring[detached:%s;trash]"):format(det_trash)
+
+ return fs
+end
+
+ -- ===================== Creative Tab (wrapped correctly) =====================
+local function fs_creative(player, S)
+  -- data prep (you can keep your existing permission check above this function if you want)
+  S.cat    = S.cat    or "all"
+  S.scroll = S.scroll or 0
+
+  local base       = CATALOG[S.cat] or {}
+  local list       = filter_items(base, S.csearch)
+  local total_rows = math.max(1, math.ceil(#list / GRID_COLS))
+  local max_scroll = math.max(0, total_rows - GRID_ROWS)
+  if S.scroll > max_scroll then S.scroll = max_scroll end
 
   -- =================== Tunable anchors (edit these numbers) =================
   -- Search row (aligned to grid width)
@@ -490,17 +593,18 @@ if S.scroll > max_scroll then S.scroll = max_scroll end
   -- Scrollbar: hug grid right edge
   local SB_W       = 0.50
   local SB_X       = GRID_X + GRID_TOTAL_W + 0.12
-  local SB_Y       = 2.5
+  local SB_Y       = BG_Y                -- use BG_Y so it aligns with grid
   local SB_H       = BG_H
 
   -- Creative hotbar: nudge up a bit so it sits clear of the bg
   local HB_X_C     = 0.85
-  local HB_Y_C     = UI_H - 1.50               -- was HOTBAR_Y-0.35; cleaner with bigger grid
+  local HB_Y_C     = UI_H - 1.50
   -- =========================================================================
 
   local fs = ""
 
   fs = fs .. page_bg(BG_CRE_TEX)
+
   -- Row 1: Search / Find / Clear
   fs = fs .. ("field[%0.2f,%0.2f;%0.2f,0.8;cw_csearch;;%s]field_close_on_enter[cw_csearch;false]")
             :format(SEARCH_X, SEARCH_Y, SEARCH_W, minetest.formspec_escape(S.csearch or ""))
@@ -550,21 +654,14 @@ if S.scroll > max_scroll then S.scroll = max_scroll end
   fs = fs .. ("scrollbar[%0.2f,%0.2f;%0.2f,%0.2f;vertical;cw_scroll;%d]")
             :format(SB_X, SB_Y, SB_W, SB_H, S.scroll)
 
-  -- Creative hotbar (VISIBLE) – only one main list on this page
-fs = fs .. ("list[current_player;main;%0.2f,%0.2f;9,1;]"):format(HB_X_C, HB_Y_C)
+  -- Creative hotbar (visible)
+  fs = fs .. ("list[current_player;main;%0.2f,%0.2f;9,1;]"):format(HB_X_C, HB_Y_C)
 
-  -- Hidden 1×1 trash list (INVISIBLE) placed *immediately after* hotbar
-  -- so Shift-click from hotbar goes straight here and is deleted by on_put.
+  -- Hidden trash + listring
+  local det_trash = ensure_trash(player)
+  fs = fs .. ("list[detached:%s;trash;-100,-100;1,1;]"):format(det_trash)
+  fs = fs .. ("listring[current_player;main]listring[detached:%s;trash]"):format(det_trash)
 
--- Hidden 1×1 trash (INVISIBLE) – must be present in the same formspec
-local det_trash = ensure_trash(player)
-fs = fs .. ("list[detached:%s;trash;-100,-100;1,1;]"):format(det_trash)
-
--- SINGLE listring chain: main → trash
--- IMPORTANT: remove any *other* listring[...] you previously added on this page.
-fs = fs .. ("listring[current_player;main]listring[detached:%s;trash]"):format(det_trash)
-
-  
   return fs
 end
 

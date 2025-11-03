@@ -1,294 +1,209 @@
--- ============================================================================
--- Craft & Ruin / Cube-World - Postgen Decorations
--- * Natural blue-noise grass/flower scatter (no lines)
--- * Trees (plains sparse, forest dense; oak/birch split 50/50)
--- * Reeds only on sand/dirt immediately adjacent to water
--- * Beehives occasionally on oak/birch
--- * Works for both custom mapgen & v7 decorator
---
--- USAGE:
--- local ok, decor = pcall(dofile, MP.."/decor_postgen.lua")
--- (But this file also exposes a global table 'cw_decor_postgen' with run_chunk)
--- ============================================================================
+-- cw_mapgen/decor_postgen.lua
+-- Post-generation decorations for Craft & Ruin
 
-cw_decor_postgen = cw_decor_postgen or {}
-
--- Content IDs (resolved at runtime to support your node names)
-local ids = {}
-local resolved = false
-local function resolve_ids()
-  if resolved then return end
-  ids.air = minetest.get_content_id("air")
-  ids.water = minetest.get_content_id("cw_core:water_source")
-  ids.dirt = minetest.get_content_id("cw_core:dirt")
-  ids.sand = minetest.get_content_id("cw_core:sand")
-  ids.grass_block = minetest.get_content_id("cw_core:grass_block")
-  ids.oak_log = minetest.get_content_id("cw_core:oak_log")
-  ids.oak_leaves = minetest.get_content_id("cw_core:oak_leaves")
-  ids.birch_log = minetest.get_content_id("cw_core:birch_log") or ids.oak_log
-  ids.birch_leaves = minetest.get_content_id("cw_core:birch_leaves") or ids.oak_leaves
-  ids.spruce_log = minetest.get_content_id("cw_core:spruce_log") or ids.oak_log
-  ids.spruce_leaves = minetest.get_content_id("cw_core:spruce_leaves") or ids.oak_leaves
-  ids.grass_decor = minetest.get_content_id("cw_core:grass_decor")
-  ids.flower_daisy = minetest.get_content_id("cw_core:flower_daisy")
-  ids.flower_bluebell = minetest.get_content_id("cw_core:flower_bluebell") -- corrected name you mentioned
-  ids.reeds = minetest.get_content_id("cw_core:reeds")
-  ids.beehive = minetest.get_content_id("cw_mobs:beehive")
-  resolved = true
+-------------------------------------------------
+-- Utility: fast deterministic pseudo-random 0..1
+-------------------------------------------------
+local function hash01(x, z, salt)
+ local n = minetest.hash_node_position({x = x, y = salt or 0, z = z})
+ -- simple mixer for LuaJIT (no ~ or bit32)
+ n = (n * 1103515245 + 12345) % 2147483647
+ return (n % 10000) / 10000
 end
 
--- PRNG shortcut (no bit32)
-local function rnd01_at(x, z, salt)
-  local pr = PcgRandom(minetest.hash_node_position({x=x, y=salt or 0, z=z}) + 9001)
-  return pr:next(0, 10000) / 10000.0
+local function clamp01(n)
+ if n < 0 then return 0 end
+ if n > 1 then return 1 end
+ return n
 end
 
--- Surface find above solid
-local function surface_y(area, data, x, z, y_min, y_max)
-  for y = y_max, y_min, -1 do
-    local vi = area:index(x,y,z)
-    local n = data[vi]
-    if n ~= ids.air and n ~= ids.water then return y end
+-------------------------------------------------
+-- Surface search
+-------------------------------------------------
+local function find_surface_y(area, data, ids, x, z, top_y, bot_y)
+ local air = ids.air or minetest.CONTENT_AIR
+ local wsrc = ids.water_source
+ for y = top_y, bot_y, -1 do
+  local vi = area:index(x, y, z)
+  local id = data[vi]
+  if id ~= air and id ~= wsrc then
+   if data[area:index(x, y+1, z)] == air then
+    return y
+   end
+   return y
   end
+ end
 end
 
--- Blue-noise per-cell scatter: sample a jittered grid + density test, then locally jitter
-local function scatter_points(minp, maxp, cell, salt, density_fn, cb)
-  for z = minp.z, maxp.z, cell do
-    for x = minp.x, maxp.x, cell do
-      local jx = math.floor(rnd01_at(x,z,salt) * cell)
-      local jz = math.floor(rnd01_at(x,z,salt+1) * cell)
-      local px = x + jx
-      local pz = z + jz
-      if px >= minp.x and px <= maxp.x and pz >= minp.z and pz <= maxp.z then
-        local d = density_fn(px, pz)
-        if rnd01_at(px,pz,salt+2) < d then
-          cb(px, pz)
-        end
-      end
+local function is_air(ids, id)
+ return id == (ids.air or minetest.CONTENT_AIR)
+end
+
+local function is_water(ids, id)
+ return id == ids.water_source or id == ids.water_flowing
+end
+
+-------------------------------------------------
+-- Trees
+-------------------------------------------------
+local function place_log(area, data, x, y, z, h, log)
+ for i = 0, h-1 do
+  data[area:index(x, y+i, z)] = log
+ end
+end
+
+local function leaves_blob(area, data, ids, cx, cy, cz, rx, ry, rz, leaves)
+ local air = ids.air or minetest.CONTENT_AIR
+ for dz = -rz, rz do
+  for dy = -ry, ry do
+   for dx = -rx, rx do
+    local d = (dx*dx)/(rx*rx)+(dy*dy)/(ry*ry)+(dz*dz)/(rz*rz)
+    if d <= 1 then
+     local vi = area:index(cx+dx, cy+dy, cz+dz)
+     if data[vi] == air then data[vi] = leaves end
     end
+   end
   end
+ end
 end
 
--- Tree builders (simple, tidy)
-local function place_oak(area, data, p2, x, y, z)
-  -- trunk
-  for i=0,4 do data[area:index(x, y+i, z)] = ids.oak_log end
-  -- canopy
-  local cy = y + 3
-  for dy=-2,2 do
-    for dz=-2,2 do
-      for dx=-2,2 do
-        if (dx*dx + dz*dz <= 3 + ((dy==0) and 1 or 0)) then
-          local vi = area:index(x+dx, cy+dy, z+dz)
-          if data[vi] == ids.air then data[vi] = ids.oak_leaves end
-        end
-      end
-    end
-  end
-  -- rare beehive (1.5%)
-  if rnd01_at(x,z,777) < 0.015 then
-    local hv = area:index(x+1, y+1, z)
-    if data[hv] == ids.air then data[hv] = ids.beehive end
-  end
+local function place_oak(area, data, ids, x, y, z)
+ local log = ids.oak_log or ids.tree
+ local leaves = ids.oak_leaves or ids.leaves
+ local h = 4 + math.floor(hash01(x,z,5)*3)
+ place_log(area, data, x, y+1, z, h, log)
+ leaves_blob(area, data, ids, x, y+h+1, z, 2,1,2, leaves)
 end
 
-local function place_birch(area, data, p2, x, y, z)
-  for i=0,5 do data[area:index(x, y+i, z)] = ids.birch_log end
-  local cy = y + 4
-  for dy=-2,2 do for dz=-2,2 do for dx=-2,2 do
-    if dx*dx + dz*dz <= 3 then
-      local vi = area:index(x+dx, cy+dy, z+dz)
-      if data[vi] == ids.air then data[vi] = ids.birch_leaves end
-    end
-  end end end
-  if rnd01_at(x,z,779) < 0.012 then
-    local hv = area:index(x+1, y+2, z)
-    if data[hv] == ids.air then data[hv] = ids.beehive end
-  end
+local function place_spruce(area, data, ids, x, y, z)
+ local log = ids.spruce_log or ids.pine_tree or ids.tree
+ local leaves = ids.spruce_needles or ids.pine_needles
+ local h = 6 + math.floor(hash01(x,z,6)*4)
+ place_log(area, data, x, y+1, z, h, log)
+ for i=0,3 do
+  leaves_blob(area, data, ids, x, y+h-i, z, 3-i,1,3-i, leaves)
+ end
 end
 
-local function place_spruce(area, data, p2, x, y, z)
-  -- trunk
-  for i=0,7 do data[area:index(x, y+i, z)] = ids.spruce_log end
-  -- conic leaves
-  local h = 7
-  for dy=0,h do
-    local r = math.max(0, 3 - math.floor(dy/2))
-    local yy = y + h - dy
-    for dz=-r,r do for dx=-r,r do
-      if dx*dx + dz*dz <= r*r then
-        local vi = area:index(x+dx, yy, z+dz)
-        if data[vi] == ids.air then data[vi] = ids.spruce_leaves end
-      end
-    end end
-  end
+-------------------------------------------------
+-- Grass / Flowers / Reeds / Mushrooms
+-------------------------------------------------
+local function place_grass(area, data, ids, vi_above)
+ if ids.grass_decor and is_air(ids, data[vi_above]) then
+  data[vi_above] = ids.grass_decor
+ end
 end
 
--- Grass / flower densities by biome
-local function density_grass(biome)
-  if biome == "plains" then return 0.40 end
-  if biome == "meadow" then return 0.55 end
-  if biome == "forest" or biome == "birch_forest" then return 0.22 end
-  if biome == "taiga" or biome == "snowy_taiga" then return 0.18 end
-  if biome == "savannah" then return 0.25 end
-  if biome == "jungle" or biome == "bamboo_jungle" then return 0.35 end
-  if biome == "swamp" then return 0.20 end
-  return 0.12
+local function place_flower(area, data, ids, vi_above, x, z)
+ local f = hash01(x,z,200)
+ local air = ids.air or minetest.CONTENT_AIR
+ if data[vi_above] ~= air then return end
+ if f < 0.33 and ids.flower_daisy then data[vi_above] = ids.flower_daisy
+ elseif f < 0.66 and ids.flower_blue then data[vi_above] = ids.flower_blue
+ elseif ids.flower_tulip then data[vi_above] = ids.flower_tulip end
 end
 
-local function density_flower(biome)
-  if biome == "meadow" then return 0.12 end
-  if biome == "plains" then return 0.06 end
-  return 0.02
+local function near_water(area, data, ids, x, y, z)
+ for dz=-3,3 do for dx=-3,3 do
+  local id=data[area:index(x+dx,y,z+dz)]
+  if is_water(ids,id) then return true end
+ end end
 end
 
--- Biome picker is passed in for v7; for custom we approximate from height
-local SEA_LEVEL = 8
-
--- Public entrypoint from mapgen files:
--- cw_decor_postgen.run_chunk(minp, maxp, biome_fn)
-function cw_decor_postgen.run_chunk(minp, maxp, biome_fn)
-  resolve_ids()
-  local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
-  local area = VoxelArea:new{MinEdge=emin, MaxEdge=emax}
-  local data = vm:get_data()
-  local p2 = vm:get_param2_data()
-
-  local function biome_at(x, z, sy)
-    if biome_fn then return biome_fn(x, z, sy) end
-    -- fallback heuristic if none provided
-    if sy <= SEA_LEVEL - 2 then return "ocean" end
-    if sy <= SEA_LEVEL + 1 then return "beach" end
-    return "plains"
-  end
-
-  -- ======== GRASS DECOR (blue-noise scatter) =========
-  scatter_points(minp, maxp, 6, 101, function(x,z)
-    -- density by biome
-    local sy = surface_y(area, data, x, z, minp.y, maxp.y)
-    if not sy then return 0 end
-    local b = biome_at(x,z,sy)
-    return density_grass(b)
-  end, function(x,z)
-    local sy = surface_y(area, data, x, z, minp.y, maxp.y)
-    if not sy then return end
-    local below = area:index(x, sy, z)
-    local above = area:index(x, sy+1, z)
-    if data[below] == ids.grass_block and data[above] == ids.air then
-      data[above] = ids.grass_decor
-    end
-  end)
-
-  -- ======== FLOWERS (sparse, independent Bernoulli per accepted point) ======
-  scatter_points(minp, maxp, 8, 202, function(x,z)
-    local sy = surface_y(area, data, x, z, minp.y, maxp.y)
-    if not sy then return 0 end
-    local b = biome_at(x,z,sy)
-    return density_flower(b)
-  end, function(x,z)
-    local sy = surface_y(area, data, x, z, minp.y, maxp.y)
-    if not sy then return end
-    local below = area:index(x, sy, z)
-    local above = area:index(x, sy+1, z)
-    if data[below] == ids.grass_block and data[above] == ids.air then
-      data[above] = (rnd01_at(x,z,5) < 0.5) and ids.flower_daisy or ids.flower_bluebell
-    end
-  end)
-
-  -- ======== REEDS (only if on sand/dirt right next to water) ================
-  scatter_points(minp, maxp, 6, 303, function(x,z)
-    return 0.12 -- modest
-  end, function(x,z)
-    local sy = surface_y(area, data, x, z, minp.y, maxp.y)
-    if not sy then return end
-    local base = area:index(x, sy, z)
-    local above= area:index(x, sy+1, z)
-    local base_id = data[base]
-    if (base_id ~= ids.sand and base_id ~= ids.dirt and base_id ~= ids.grass_block) then return end
-    if data[above] ~= ids.air then return end
-    -- must be immediately adjacent to water (N/E/S/W)
-    local function is_water(xx,zz) return data[area:index(xx, sy, zz)] == ids.water end
-    if is_water(x+1,z) or is_water(x-1,z) or is_water(x,z+1) or is_water(x,z-1) then
-      data[above] = ids.reeds
-    end
-  end)
-
-  -- ======== TREES (blue-noise, slope & spacing checks) ======================
-  local function can_place_tree(x,z,sy)
-    -- ensure air space
-    for yy=sy+1, sy+8 do
-      local vi = area:index(x,yy,z)
-      if data[vi] ~= ids.air then return false end
-    end
-    return true
-  end
-
-  -- deterministic neighbor avoidance (simple radius with hashed grid)
-  local seen = {}
-  local function mark_used(x,z,r)
-    local key = math.floor(x/r)..":"..math.floor(z/r)
-    seen[key] = true
-  end
-  local function used_near(x,z,r)
-    local kx = math.floor(x/r); local kz = math.floor(z/r)
-    for dz=-1,1 do for dx=-1,1 do
-      if seen[(kx+dx)..":"..(kz+dz)] then return true end
-    end end
-    return false
-  end
-
-  scatter_points(minp, maxp, 12, 404, function(x,z)
-    local sy = surface_y(area, data, x, z, minp.y, maxp.y)
-    if not sy then return 0 end
-    local b = biome_at(x,z,sy)
-    if b == "plains" then return 0.03 end
-    if b == "meadow" then return 0.02 end
-    if b == "forest" then return 0.25 end
-    if b == "birch_forest" then return 0.35 end
-    if b == "taiga" or b == "snowy_taiga" then return 0.22 end
-    if b == "jungle" then return 0.40 end
-    return 0
-  end, function(x,z)
-    local sy = surface_y(area, data, x, z, minp.y, maxp.y)
-    if not sy then return end
-    if used_near(x,z,10) then return end
-    local below = area:index(x, sy, z)
-    if data[below] ~= ids.grass_block then return end
-    if not can_place_tree(x,z,sy) then return end
-
-    local b = (function()
-      -- approximate again (we don't store the earlier value)
-      if sy <= SEA_LEVEL - 2 then return "ocean" end
-      if sy <= SEA_LEVEL + 1 then return "beach" end
-      return "plains"
-    end)()
-
-    -- Prefer actual biome decision if v7 passed it through earlier
-    if minetest.global_exists("__cw_override_biome_at") then
-      b = __cw_override_biome_at(x,z,sy) or b
-    end
-
-    if b == "forest" then
-      if rnd01_at(x,z,11) < 0.5 then place_oak(area,data,p2,x,sy+1,z)
-      else place_birch(area,data,p2,x,sy+1,z) end
-      mark_used(x,z,10)
-    elseif b == "birch_forest" then
-      place_birch(area,data,p2,x,sy+1,z); mark_used(x,z,10)
-    elseif b == "plains" or b == "meadow" then
-      if rnd01_at(x,z,12) < 0.10 then place_oak(area,data,p2,x,sy+1,z); mark_used(x,z,10) end
-    elseif b == "taiga" or b == "snowy_taiga" then
-      place_spruce(area,data,p2,x,sy+1,z); mark_used(x,z,10)
-    elseif b == "jungle" then
-      -- for now just oak proxy; replace with jungle tree later
-      place_oak(area,data,p2,x,sy+1,z); mark_used(x,z,10)
-    end
-  end)
-
-  vm:set_data(data)
-  vm:set_param2_data(p2)
-  vm:calc_lighting(nil, nil)
-  vm:write_to_map()
+local function place_reeds(area, data, ids, x, y, z, vi_above)
+ if ids.reeds and near_water(area,data,ids,x,y,z) and is_air(ids,data[vi_above]) then
+  data[vi_above]=ids.reeds
+ end
 end
 
-return cw_decor_postgen
+-------------------------------------------------
+-- Mushroom: only when covered by leaves/blocks
+-------------------------------------------------
+local function place_mushroom(area,data,ids,x,y,z,vi_above)
+ local a2=data[area:index(x,y+2,z)]
+ if not is_air(ids,a2) then
+  local f=hash01(x,z,300)
+  if f<0.5 and ids.mushroom_brown then data[vi_above]=ids.mushroom_brown
+  elseif ids.mushroom_red then data[vi_above]=ids.mushroom_red end
+ end
+end
+
+-------------------------------------------------
+-- Main scatter
+-------------------------------------------------
+local function scatter(area,data,ids,emin,emax,step,density_fn,place_fn)
+ local top=emax.y
+ local bot=emin.y
+
+ for z=emin.z,emax.z,step do
+  for x=emin.x,emax.x,step do
+   if hash01(x,z,999) < density_fn(x,z) then
+    local sy=find_surface_y(area,data,ids,x,z,top,bot)
+    if sy then
+     local vi=area:index(x,sy,z)
+     local vi_above=area:index(x,sy+1,z)
+     place_fn(x,z,sy,vi,vi_above)
+    end
+   end
+  end
+ end
+end
+
+-------------------------------------------------
+-- Exported entry point
+-------------------------------------------------
+local M = {}
+
+function M.run_chunk(area,data,p2,ids,emin,emax,biome_at)
+
+ -- grass
+ scatter(area,data,ids,emin,emax,8,
+  function(x,z)
+   local b=biome_at(x,z)
+   return (b=="plains" and 0.25)
+    or (b=="forest" and 0.18)
+    or 0.05
+  end,
+  function(x,z,sy,vi,vi_above) place_grass(area,data,ids,vi_above) end
+ )
+
+ -- flowers
+ scatter(area,data,ids,emin,emax,12,
+  function(x,z)
+   local b=biome_at(x,z)
+   return (b=="plains" and 0.10) or 0.01
+  end,
+  function(x,z,sy,vi,vi_above) place_flower(area,data,ids,vi_above,x,z) end
+ )
+
+ -- reeds
+ scatter(area,data,ids,emin,emax,8,
+  function(x,z) return 0.06 end,
+  function(x,z,sy,vi,vi_above) place_reeds(area,data,ids,x,sy,z,vi_above) end
+ )
+
+ -- mushrooms
+ scatter(area,data,ids,emin,emax,10,
+  function(x,z) return 0.03 end,
+  function(x,z,sy,vi,vi_above) place_mushroom(area,data,ids,x,sy,z,vi_above) end
+ )
+
+ -- trees
+ scatter(area,data,ids,emin,emax,14,
+  function(x,z)
+   local b=biome_at(x,z)
+   return (b=="forest" and 0.20)
+    or (b=="taiga" and 0.25)
+    or (b=="plains" and 0.04)
+    or 0
+  end,
+  function(x,z,sy)
+   local b=biome_at(x,z)
+   if b=="taiga" then place_spruce(area,data,ids,x,sy,z)
+   else place_oak(area,data,ids,x,sy,z) end
+  end
+ )
+
+end
+
+return M

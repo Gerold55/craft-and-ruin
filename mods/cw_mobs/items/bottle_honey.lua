@@ -3,7 +3,7 @@
 
 local HONEY_ITEM = "cw_mobs:bottle_honey"
 
-minetest.register_craftitem(HONEY_ITEM, {
+core.register_craftitem(HONEY_ITEM, {
   description = "Honey Bottle",
   inventory_image = "cw_honey_bottle.png",
   stack_max = 99,
@@ -17,13 +17,13 @@ minetest.register_craftitem(HONEY_ITEM, {
     end
 
     -- consume the honey, give back empty bottle (unless in creative)
-    if user and not minetest.is_creative_enabled(user:get_player_name()) then
+    if user and not core.is_creative_enabled(user:get_player_name()) then
       itemstack:take_item(1)
       local inv = user:get_inventory()
       local leftover = inv:add_item("main", ItemStack("cw_core:bottle_glass"))
       if not leftover:is_empty() then
         local p = user:get_pos(); if p then p.y = p.y + 1 end
-        minetest.add_item(p, leftover)
+        core.add_item(p, leftover)
       end
     end
     return itemstack

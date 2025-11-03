@@ -9,7 +9,7 @@ local S, U = cw_mobs.settings, cw_mobs.util
 -- Robust numeric settings
 -- --------------------------
 local function numset(key, default)
-  local v = minetest.settings:get(key)
+  local v = core.settings:get(key)
   if v == nil or v == "" then return default end
   v = tonumber(v)
   return v or default
@@ -48,7 +48,7 @@ local DRIFT_REPICK_CHANCE   = 0.025
 -- Invisible light node (real light)
 -- Requires textures/cw_mobs_empty.png (1x1 fully transparent)
 -- --------------------------
-minetest.register_node("cw_mobs:light_pulse", {
+core.register_node("cw_mobs:light_pulse", {
   description = "CW Light Pulse (invisible)",
   drawtype = "airlike",
   tiles = {"cw_mobs_empty.png"},
@@ -67,7 +67,7 @@ minetest.register_node("cw_mobs:light_pulse", {
 -- --------------------------
 -- Firefly entity (REGISTERED FIRST, before any spawn code)
 -- --------------------------
-minetest.register_entity("cw_mobs:firefly", {
+core.register_entity("cw_mobs:firefly", {
   initial_properties = {
     visual = "upright_sprite",
     textures = {"cw_mobs_firefly_anim.png"}, -- 2 px wide × 7 px tall; frames are 2x1 stacked vertically
@@ -133,27 +133,27 @@ minetest.register_entity("cw_mobs:firefly", {
 
       -- On peak -> try brief world-light flash (node)
       if g >= PEAK_GLOW and self._last_glow < PEAK_GLOW then
-        local now = minetest.get_gametime()
+        local now = core.get_gametime()
         if now >= (self._next_flash_at or 0) and math.random() < FLASH_CHANCE then
           local p = self.object:get_pos()
           if p then
             local np = {x = math.floor(p.x + 0.5), y = math.floor(p.y + 0.5), z = math.floor(p.z + 0.5)}
 
             -- only place in air/buildable_to and not protected
-            local ok, n = false, minetest.get_node_or_nil(np)
-            if n and not (minetest.is_protected and minetest.is_protected(np, "")) then
+            local ok, n = false, core.get_node_or_nil(np)
+            if n and not (core.is_protected and core.is_protected(np, "")) then
               if n.name == "air" then ok = true
               else
-                local def = minetest.registered_nodes[n.name]
+                local def = core.registered_nodes[n.name]
                 ok = def and def.buildable_to
               end
             end
 
             if ok then
-              minetest.set_node(np, {name = "cw_mobs:light_pulse"})
-              minetest.after(FLASH_LIFETIME, function(pos2)
-                local nn = minetest.get_node(pos2)
-                if nn and nn.name == "cw_mobs:light_pulse" then minetest.remove_node(pos2) end
+              core.set_node(np, {name = "cw_mobs:light_pulse"})
+              core.after(FLASH_LIFETIME, function(pos2)
+                local nn = core.get_node(pos2)
+                if nn and nn.name == "cw_mobs:light_pulse" then core.remove_node(pos2) end
               end, np)
               self._next_flash_at = now + FLASH_COOLDOWN
             end
@@ -174,21 +174,21 @@ minetest.register_entity("cw_mobs:firefly", {
 -- --------------------------
 local function try_spawn_firefly_at(pos)
   -- If for any reason the entity isn't registered yet, bail gracefully and log
-  if not minetest.registered_entities["cw_mobs:firefly"] then
-    minetest.log("error", "[cw_mobs] Firefly entity not registered yet; skipping spawn")
+  if not core.registered_entities["cw_mobs:firefly"] then
+    core.log("error", "[cw_mobs] Firefly entity not registered yet; skipping spawn")
     return false
   end
 
   local feet = {x=pos.x, y=pos.y, z=pos.z}
   local head = {x=pos.x, y=pos.y+1, z=pos.z}
-  local fdef = minetest.registered_nodes[minetest.get_node(feet).name]
-  local hdef = minetest.registered_nodes[minetest.get_node(head).name]
+  local fdef = core.registered_nodes[core.get_node(feet).name]
+  local hdef = core.registered_nodes[core.get_node(head).name]
   if fdef and hdef and (not fdef.walkable) and (not hdef.walkable) then
     if (not NIGHT_ONLY) or (U and U.is_night and U.is_night()) then
-      local ok, obj = pcall(minetest.add_entity, feet, "cw_mobs:firefly")
+      local ok, obj = pcall(core.add_entity, feet, "cw_mobs:firefly")
       if ok and obj then return true end
-      minetest.log("error", "[cw_mobs] add_entity failed for cw_mobs:firefly at "
-        .. minetest.pos_to_string(feet))
+      core.log("error", "[cw_mobs] add_entity failed for cw_mobs:firefly at "
+        .. core.pos_to_string(feet))
     end
   end
   return false
@@ -205,7 +205,7 @@ local function spawn_fireflies(ppos, ctx)
   -- scan for leaves near player
   local minp = {x=ppos.x - SCAN_R_XZ, y=ppos.y - SCAN_R_Y, z=ppos.z - SCAN_R_XZ}
   local maxp = {x=ppos.x + SCAN_R_XZ, y=ppos.y + SCAN_R_Y, z=ppos.z + SCAN_R_XZ}
-  local leaves, counts = minetest.find_nodes_in_area(minp, maxp, {"group:leaves"})
+  local leaves, counts = core.find_nodes_in_area(minp, maxp, {"group:leaves"})
   local leaf_n = (counts and (counts["group:leaves"] or 0)) or (#leaves or 0)
 
   -- conservative tries to save FPS
