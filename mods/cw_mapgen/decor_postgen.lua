@@ -1,209 +1,143 @@
--- cw_mapgen/decor_postgen.lua
--- Post-generation decorations for Craft & Ruin
+-- ============================================================================
+-- cw_mapgen: decor_postgen.lua
+-- Handles trees, reeds, and flowers based on Minecraft-style biome logic
+-- ============================================================================
 
--------------------------------------------------
--- Utility: fast deterministic pseudo-random 0..1
--------------------------------------------------
-local function hash01(x, z, salt)
- local n = minetest.hash_node_position({x = x, y = salt or 0, z = z})
- -- simple mixer for LuaJIT (no ~ or bit32)
- n = (n * 1103515245 + 12345) % 2147483647
- return (n % 10000) / 10000
-end
+local MODPATH = core.get_modpath("cw_core")
 
-local function clamp01(n)
- if n < 0 then return 0 end
- if n > 1 then return 1 end
- return n
-end
+-- 1. Schematic File Paths
+local schems = {
+    oak = MODPATH .. "/schematics/tree_oak.mts",
+    birch = MODPATH .. "/schematics/tree_birch.mts",
+    spruce = MODPATH .. "/schematics/tree_spruce.mts",
+}
 
--------------------------------------------------
--- Surface search
--------------------------------------------------
-local function find_surface_y(area, data, ids, x, z, top_y, bot_y)
- local air = ids.air or minetest.CONTENT_AIR
- local wsrc = ids.water_source
- for y = top_y, bot_y, -1 do
-  local vi = area:index(x, y, z)
-  local id = data[vi]
-  if id ~= air and id ~= wsrc then
-   if data[area:index(x, y+1, z)] == air then
-    return y
-   end
-   return y
-  end
- end
-end
+-- 2. Cleanup Legacy Decors
+-- This removes any default engine decorations so only yours appear.
+minetest.clear_registered_decorations()
 
-local function is_air(ids, id)
- return id == (ids.air or minetest.CONTENT_AIR)
-end
+------------------------------------------------------------
+-- SPRUCE (TAIGA BIOME)
+------------------------------------------------------------
+-- This uses noise to match the "Cold" areas defined in mapgen.lua
+minetest.register_decoration({
+    name = "cw_mapgen:spruce_tree",
+    deco_type = "schematic",
+    place_on = {"cw_core:grass_block", "cw_core:snow_block"},
+    sidelen = 16,
+    noise_params = {
+        offset = 0.03, -- High density for a thick forest
+        scale = 0.05,
+        spread = {x = 200, y = 200, z = 200},
+        seed = 911,
+        octaves = 3,
+        persist = 0.7
+    },
+    -- Restrict Spruce to cold noise values (-1.0 to -0.4)
+    biomes = {"v6_taiga"}, 
+    schematic = schems.spruce,
+    flags = "place_center_x, place_center_z",
+    rotation = "random",
+})
 
-local function is_water(ids, id)
- return id == ids.water_source or id == ids.water_flowing
-end
+------------------------------------------------------------
+-- OAK & BIRCH (FOREST BIOME)
+------------------------------------------------------------
+minetest.register_decoration({
+    name = "cw_mapgen:oak_tree",
+    deco_type = "schematic",
+    place_on = {"cw_core:grass_block"},
+    sidelen = 16,
+    noise_params = {
+        offset = 0.01,
+        scale = 0.02,
+        spread = {x = 150, y = 150, z = 150},
+        seed = 2,
+        octaves = 3,
+        persist = 0.6
+    },
+    biomes = {"v6_forest", "v6_apple_trees"},
+    schematic = schems.oak,
+    flags = "place_center_x, place_center_z",
+    rotation = "random",
+})
 
--------------------------------------------------
--- Trees
--------------------------------------------------
-local function place_log(area, data, x, y, z, h, log)
- for i = 0, h-1 do
-  data[area:index(x, y+i, z)] = log
- end
-end
+minetest.register_decoration({
+    name = "cw_mapgen:birch_tree",
+    deco_type = "schematic",
+    place_on = {"cw_core:grass_block"},
+    sidelen = 8,
+    noise_params = {
+        offset = 0.005,
+        scale = 0.01,
+        spread = {x = 100, y = 100, z = 100},
+        seed = 422,
+        octaves = 3,
+        persist = 0.6
+    },
+    biomes = {"v6_forest"},
+    schematic = schems.birch,
+    flags = "place_center_x, place_center_z",
+    rotation = "random",
+})
 
-local function leaves_blob(area, data, ids, cx, cy, cz, rx, ry, rz, leaves)
- local air = ids.air or minetest.CONTENT_AIR
- for dz = -rz, rz do
-  for dy = -ry, ry do
-   for dx = -rx, rx do
-    local d = (dx*dx)/(rx*rx)+(dy*dy)/(ry*ry)+(dz*dz)/(rz*rz)
-    if d <= 1 then
-     local vi = area:index(cx+dx, cy+dy, cz+dz)
-     if data[vi] == air then data[vi] = leaves end
-    end
-   end
-  end
- end
-end
+------------------------------------------------------------
+-- WATER-SIDE DECOR (REEDS)
+------------------------------------------------------------
+minetest.register_decoration({
+    name = "cw_mapgen:reeds",
+    deco_type = "simple",
+    place_on = {"cw_core:grass_block", "cw_core:sand"},
+    sidelen = 16,
+    noise_params = {
+        offset = -0.01,
+        scale = 0.1,
+        spread = {x = 50, y = 50, z = 50},
+        seed = 123,
+        octaves = 3,
+        persist = 0.7
+    },
+    decoration = "cw_core:reeds",
+    height = 2,
+    height_max = 4,
+    spawn_by = "cw_core:water_source", -- Keeps them near the river/sea
+    num_spawn_by = 1,
+})
 
-local function place_oak(area, data, ids, x, y, z)
- local log = ids.oak_log or ids.tree
- local leaves = ids.oak_leaves or ids.leaves
- local h = 4 + math.floor(hash01(x,z,5)*3)
- place_log(area, data, x, y+1, z, h, log)
- leaves_blob(area, data, ids, x, y+h+1, z, 2,1,2, leaves)
-end
+------------------------------------------------------------
+-- GROUND COVER (GRASS & FLOWERS)
+------------------------------------------------------------
 
-local function place_spruce(area, data, ids, x, y, z)
- local log = ids.spruce_log or ids.pine_tree or ids.tree
- local leaves = ids.spruce_needles or ids.pine_needles
- local h = 6 + math.floor(hash01(x,z,6)*4)
- place_log(area, data, x, y+1, z, h, log)
- for i=0,3 do
-  leaves_blob(area, data, ids, x, y+h-i, z, 3-i,1,3-i, leaves)
- end
-end
+-- Standard Grass
+minetest.register_decoration({
+    name = "cw_mapgen:grass",
+    deco_type = "simple",
+    place_on = {"cw_core:grass_block"},
+    sidelen = 16,
+    noise_params = {
+        offset = 0,
+        scale = 0.4,
+        spread = {x = 100, y = 100, z = 100},
+        seed = 333,
+        octaves = 3,
+        persist = 0.6
+    },
+    decoration = "cw_core:grass_decor",
+})
 
--------------------------------------------------
--- Grass / Flowers / Reeds / Mushrooms
--------------------------------------------------
-local function place_grass(area, data, ids, vi_above)
- if ids.grass_decor and is_air(ids, data[vi_above]) then
-  data[vi_above] = ids.grass_decor
- end
-end
-
-local function place_flower(area, data, ids, vi_above, x, z)
- local f = hash01(x,z,200)
- local air = ids.air or minetest.CONTENT_AIR
- if data[vi_above] ~= air then return end
- if f < 0.33 and ids.flower_daisy then data[vi_above] = ids.flower_daisy
- elseif f < 0.66 and ids.flower_blue then data[vi_above] = ids.flower_blue
- elseif ids.flower_tulip then data[vi_above] = ids.flower_tulip end
-end
-
-local function near_water(area, data, ids, x, y, z)
- for dz=-3,3 do for dx=-3,3 do
-  local id=data[area:index(x+dx,y,z+dz)]
-  if is_water(ids,id) then return true end
- end end
-end
-
-local function place_reeds(area, data, ids, x, y, z, vi_above)
- if ids.reeds and near_water(area,data,ids,x,y,z) and is_air(ids,data[vi_above]) then
-  data[vi_above]=ids.reeds
- end
-end
-
--------------------------------------------------
--- Mushroom: only when covered by leaves/blocks
--------------------------------------------------
-local function place_mushroom(area,data,ids,x,y,z,vi_above)
- local a2=data[area:index(x,y+2,z)]
- if not is_air(ids,a2) then
-  local f=hash01(x,z,300)
-  if f<0.5 and ids.mushroom_brown then data[vi_above]=ids.mushroom_brown
-  elseif ids.mushroom_red then data[vi_above]=ids.mushroom_red end
- end
-end
-
--------------------------------------------------
--- Main scatter
--------------------------------------------------
-local function scatter(area,data,ids,emin,emax,step,density_fn,place_fn)
- local top=emax.y
- local bot=emin.y
-
- for z=emin.z,emax.z,step do
-  for x=emin.x,emax.x,step do
-   if hash01(x,z,999) < density_fn(x,z) then
-    local sy=find_surface_y(area,data,ids,x,z,top,bot)
-    if sy then
-     local vi=area:index(x,sy,z)
-     local vi_above=area:index(x,sy+1,z)
-     place_fn(x,z,sy,vi,vi_above)
-    end
-   end
-  end
- end
-end
-
--------------------------------------------------
--- Exported entry point
--------------------------------------------------
-local M = {}
-
-function M.run_chunk(area,data,p2,ids,emin,emax,biome_at)
-
- -- grass
- scatter(area,data,ids,emin,emax,8,
-  function(x,z)
-   local b=biome_at(x,z)
-   return (b=="plains" and 0.25)
-    or (b=="forest" and 0.18)
-    or 0.05
-  end,
-  function(x,z,sy,vi,vi_above) place_grass(area,data,ids,vi_above) end
- )
-
- -- flowers
- scatter(area,data,ids,emin,emax,12,
-  function(x,z)
-   local b=biome_at(x,z)
-   return (b=="plains" and 0.10) or 0.01
-  end,
-  function(x,z,sy,vi,vi_above) place_flower(area,data,ids,vi_above,x,z) end
- )
-
- -- reeds
- scatter(area,data,ids,emin,emax,8,
-  function(x,z) return 0.06 end,
-  function(x,z,sy,vi,vi_above) place_reeds(area,data,ids,x,sy,z,vi_above) end
- )
-
- -- mushrooms
- scatter(area,data,ids,emin,emax,10,
-  function(x,z) return 0.03 end,
-  function(x,z,sy,vi,vi_above) place_mushroom(area,data,ids,x,sy,z,vi_above) end
- )
-
- -- trees
- scatter(area,data,ids,emin,emax,14,
-  function(x,z)
-   local b=biome_at(x,z)
-   return (b=="forest" and 0.20)
-    or (b=="taiga" and 0.25)
-    or (b=="plains" and 0.04)
-    or 0
-  end,
-  function(x,z,sy)
-   local b=biome_at(x,z)
-   if b=="taiga" then place_spruce(area,data,ids,x,sy,z)
-   else place_oak(area,data,ids,x,sy,z) end
-  end
- )
-
-end
-
-return M
+-- Flowers (Daisies and Bluebells)
+minetest.register_decoration({
+    name = "cw_mapgen:flowers",
+    deco_type = "simple",
+    place_on = {"cw_core:grass_block"},
+    sidelen = 16,
+    noise_params = {
+        offset = -0.02,
+        scale = 0.05,
+        spread = {x = 50, y = 50, z = 50},
+        seed = 777,
+        octaves = 2,
+        persist = 0.5
+    },
+    decoration = {"cw_core:flower_daisy", "cw_core:flower_bluebell"},
+})

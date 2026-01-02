@@ -64,6 +64,13 @@ local function _clamp(a, lo, hi) if a < lo then return lo elseif a > hi then ret
 -- Core terrain nodes
 -- =========================
 
+minetest.register_node("cw_core:bedrock", {
+  description = S("Bedrock"),
+  tiles = {"cw_bedrock.png"},
+  is_ground_content = true,
+  sounds = node_sound_stone(),
+})
+
 minetest.register_node("cw_core:stone", {
   description = S("Stone"),
   tiles = {"cw_stone.png"},
@@ -81,9 +88,29 @@ minetest.register_node("cw_core:cobble", {
   sounds = node_sound_stone(),
 })
 
+minetest.register_node("cw_core:snow", {
+  description = S("Snow"),
+  tiles = {"cw_snow.png"},
+  is_ground_content = true,
+  groups = {crumbly=2, soil=1},
+  sounds = node_sound_dirt(),
+})
+
 minetest.register_node("cw_core:dirt", {
   description = S("Dirt"),
   tiles = {"cw_dirt.png"},
+  is_ground_content = true,
+  groups = {crumbly=2, soil=1},
+  sounds = node_sound_dirt(),
+})
+
+minetest.register_node("cw_core:podzol", {
+  description = S("Podzol"),
+  tiles = {
+    "ws_forest_litter.png",
+    "cw_dirt.png",
+    { name = "cw_dirt.png^(ws_forest_litter_side.png)", align_style = "world" },
+  },
   is_ground_content = true,
   groups = {crumbly=2, soil=1},
   sounds = node_sound_dirt(),
@@ -211,7 +238,7 @@ minetest.register_craftitem("cw_core:nugget_gold", {
 -- Wood & foliage
 -- =========================
 
-minetest.register_node("cw_core:oak_log", {
+minetest.register_node("cw_core:log_oak", {
   description = S("Oak Log"),
   tiles = {"cw_oak_log_top.png","cw_oak_log_top.png","cw_oak_log.png"},
   paramtype2 = "facedir",
@@ -227,7 +254,7 @@ minetest.register_node("cw_core:planks_oak", {
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_node("cw_core:birch_log", {
+minetest.register_node("cw_core:log_birch", {
   description = S("Birch Log"),
   tiles = {"cw_birch_log_top.png","cw_birch_log_top.png","cw_birch_log.png"},
   paramtype2 = "facedir",
@@ -243,7 +270,7 @@ minetest.register_node("cw_core:planks_birch", {
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_node("cw_core:spruce_log", {
+minetest.register_node("cw_core:log_spruce", {
   description = S("Spruce Log"),
   tiles = {"cw_spruce_log_top.png","cw_spruce_log_top.png","cw_spruce_log.png"},
   paramtype2 = "facedir",
@@ -254,6 +281,22 @@ minetest.register_node("cw_core:spruce_log", {
 minetest.register_node("cw_core:planks_spruce", {
   description = S("Spruce Planks"),
   tiles = {"cw_spruce_planks.png"},
+  paramtype2 = "facedir",
+  groups = {wood=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
+  sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+})
+
+minetest.register_node("cw_core:log_jungle", {
+  description = S("Jungle Log"),
+  tiles = {"cw_jungle_log_top.png","cw_jungle_log_top.png","cw_jungle_log.png"},
+  paramtype2 = "facedir",
+  groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
+  sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+})
+
+minetest.register_node("cw_core:planks_jungle", {
+  description = S("Jungle Planks"),
+  tiles = {"cw_jungle_planks.png"},
   paramtype2 = "facedir",
   groups = {wood=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
@@ -319,7 +362,7 @@ function cw_core.update_leaf_tint(pos, keep_idx)
   end
 end
 
-minetest.register_node("cw_core:oak_leaves", {
+minetest.register_node("cw_core:leaves_oak", {
   description = "Oak Leaves",
   drawtype = "allfaces_optional",
   waving = 1,
@@ -343,7 +386,7 @@ minetest.register_node("cw_core:oak_leaves", {
   end,
 })
 
-minetest.register_node("cw_core:birch_leaves", {
+minetest.register_node("cw_core:leaves_birch", {
   description = "Birch Leaves",
   drawtype = "allfaces_optional",
   waving = 1,
@@ -367,7 +410,7 @@ minetest.register_node("cw_core:birch_leaves", {
   end,
 })
 
-minetest.register_node("cw_core:spruce_leaves", {
+minetest.register_node("cw_core:leaves_spruce", {
   description = "Spruce Leaves",
   drawtype = "allfaces_optional",
   waving = 1,
@@ -383,6 +426,30 @@ minetest.register_node("cw_core:spruce_leaves", {
     max_items = 1,
     items = {
       { items = { "cw_core:spruce_sapling" }, rarity = 20 },
+    }
+  },
+  sounds = (default and default.node_sound_leaves_defaults and default.node_sound_leaves_defaults()) or node_sound_leaves(),
+  after_place_node = function(pos)
+    cw_core.update_leaf_tint(pos)
+  end,
+})
+
+minetest.register_node("cw_core:leaves_jungle", {
+  description = "Jungle Leaves",
+  drawtype = "allfaces_optional",
+  waving = 1,
+  tiles = { "cw_jungle_leaves.png" }, -- neutral gray texture recommended
+  use_texture_alpha = "clip",
+  paramtype  = "light",
+  paramtype2 = "color",
+  palette    = FOLIAGE_PALETTE,
+  palette_index = math.floor((F_MIN + F_MAX) / 2),
+  color         = "#8EB971",
+  groups = { snappy=3, leafdecay=1, flammable=2, leaves=1 },
+  drop = {
+    max_items = 1,
+    items = {
+      { items = { "cw_core:jungle_sapling" }, rarity = 20 },
     }
   },
   sounds = (default and default.node_sound_leaves_defaults and default.node_sound_leaves_defaults()) or node_sound_leaves(),
@@ -470,6 +537,34 @@ minetest.register_node("cw_core:oak_sapling", {
   tiles = {"cw_oak_sapling.png"},
   inventory_image = "cw_oak_sapling.png",
   wield_image = "cw_oak_sapling.png",
+  paramtype = "light",
+  sunlight_propagates = true,
+  walkable = false,
+  buildable_to = true,
+  groups = {snappy=2, dig_immediate=3, flammable=2, attached_node=1, sapling=1},
+  selection_box = {type="fixed", fixed={-0.2,-0.5,-0.2, 0.2,0.35,0.2}},
+  on_construct = function(pos)
+    minetest.get_node_timer(pos):start(math.random(60, 120))
+  end,
+  on_timer = function(pos)
+    local under = minetest.get_node({x=pos.x, y=pos.y-1, z=pos.z}).name
+    if under ~= "cw_core:dirt" and under ~= "cw_core:grass_block" and under ~= "cw_core:sand" then
+      return true -- retry later
+    end
+    if cw_core and cw_core.grow_oak then
+      cw_core.grow_oak(pos, nil)
+      return false
+    end
+    return true
+  end,
+})
+
+minetest.register_node("cw_core:birch_sapling", {
+  description = S("Birch Sapling"),
+  drawtype = "plantlike",
+  tiles = {"cw_birch_sapling.png"},
+  inventory_image = "cw_birch_sapling.png",
+  wield_image = "cw_birch_sapling.png",
   paramtype = "light",
   sunlight_propagates = true,
   walkable = false,

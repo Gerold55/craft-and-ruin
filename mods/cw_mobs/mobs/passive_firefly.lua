@@ -70,7 +70,7 @@ core.register_node("cw_mobs:light_pulse", {
 core.register_entity("cw_mobs:firefly", {
   initial_properties = {
     visual = "upright_sprite",
-    textures = {"cw_mobs_firefly_anim.png"}, -- 2 px wide × 7 px tall; frames are 2x1 stacked vertically
+    textures = {"cw_firefly_anim.png"}, -- 2 px wide × 7 px tall; frames are 2x1 stacked vertically
     spritediv = {x = 1, y = FRAMES},
     initial_sprite_basepos = {x = 0, y = 0},
 
