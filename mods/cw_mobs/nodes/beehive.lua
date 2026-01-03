@@ -348,3 +348,25 @@ core.register_lbm({
     core.get_node_timer(pos):start(TICK_SEC)
   end
 })
+
+-- FIX: Mapgen doesn't trigger on_construct. This LBM fixes "dead" wild hives.
+minetest.register_lbm({
+    name = "cw_mobs:activate_wild_hives",
+    nodenames = {"cw_mobs:beehive", "cw_mobs:beehive_full"},
+    run_at_every_load = false, -- Only run once per hive
+    action = function(pos, node)
+        local meta = minetest.get_meta(pos)
+        
+        -- Check if bees are actually inside; if not, populate it.
+        if meta:get_int("bees") == 0 and meta:get_string("initialized") ~= "true" then
+            meta:set_int("bees", math.random(1, 3))
+            meta:set_int("honey", 0)
+            meta:set_string("initialized", "true") -- Mark so we don't overwrite player-placed hives
+            
+            -- Start the node timer so bees can leave
+            minetest.get_node_timer(pos):start(2)
+            
+            minetest.log("action", "[cw_mobs] Activated wild hive at " .. minetest.pos_to_string(pos))
+        end
+    end,
+})

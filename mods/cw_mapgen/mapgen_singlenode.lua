@@ -21,6 +21,10 @@ if mg_name ~= "singlenode" then
     return
 end
 
+-- Aliases are required for the decoration engine to ground trees correctly
+minetest.register_alias("mapgen_stone", "cw_core:stone")
+minetest.register_alias("mapgen_water_source", "cw_core:water_source")
+
 minetest.log("action", "[cw_mapgen] singlenode mapgen active")
 
 --------------------------------------------------
@@ -61,7 +65,7 @@ end
 init_cids()
 
 --------------------------------------------------
--- Simple hash-based RNG (chunk-stable, no bit32)
+-- Simple hash-based RNG
 --------------------------------------------------
 
 local function hash2(x, z, salt)
@@ -70,12 +74,8 @@ local function hash2(x, z, salt)
     return n
 end
 
-local function rand01(x, z, salt)
-    return (hash2(x, z, salt) % 10000) / 10000.0
-end
-
 --------------------------------------------------
--- Perlin noise configuration (edit here)
+-- Perlin noise configuration
 --------------------------------------------------
 
 local NOISE_CFG = {
@@ -93,11 +93,8 @@ local n_temp, n_humid, n_moist
 local noise_ready = false
 
 local function make_perlin(base_seed, salt, cfg, label)
-    assert(cfg and cfg.spread, "[cw_mapgen] noise '"..label.."' missing spread")
-
     local seed = (base_seed or 0) + (salt or 0)
-
-    local n = minetest.get_perlin({
+    return minetest.get_perlin({
         offset = 0,
         scale = cfg.scale or 1.0,
         spread = { x = cfg.spread, y = cfg.spread, z = cfg.spread },
@@ -105,28 +102,18 @@ local function make_perlin(base_seed, salt, cfg, label)
         octaves = cfg.octaves or 3,
         persist = cfg.persist or 0.5,
     })
-
-    assert(n, "[cw_mapgen] perlin init failed for "..label.." (seed="..tostring(seed)..")")
-    return n
 end
 
 local function ensure_noises()
     if noise_ready then return end
-
-    local base_seed =
-        tonumber(minetest.get_mapgen_setting("seed")) or
-        os.time()
-
+    local base_seed = tonumber(minetest.get_mapgen_setting("seed")) or os.time()
     n_cont = make_perlin(base_seed, 101, NOISE_CFG.continent, "continent")
     n_hills = make_perlin(base_seed, 202, NOISE_CFG.hills, "hills")
     n_detail = make_perlin(base_seed, 303, NOISE_CFG.detail, "detail")
-
     n_temp = make_perlin(base_seed, 404, NOISE_CFG.temp, "temp")
     n_humid = make_perlin(base_seed, 505, NOISE_CFG.humid, "humid")
     n_moist = make_perlin(base_seed, 606, NOISE_CFG.moist, "moist")
-
     noise_ready = true
-    minetest.log("action", "[cw_mapgen] noises initialized (seed "..base_seed..")")
 end
 
 --------------------------------------------------
@@ -135,37 +122,29 @@ end
 
 local function ground_height(x, z)
     ensure_noises()
-
-    local c = n_cont:get_2d({x=x, y=z}) -- big shapes
-    local h = n_hills:get_2d({x=x, y=z}) -- hills
-    local d = n_detail:get_2d({x=x, y=z}) -- small bumps
-
-    -- Minecraft-ish rolling terrain
+    local c = n_cont:get_2d({x=x, y=z})
+    local h = n_hills:get_2d({x=x, y=z})
+    local d = n_detail:get_2d({x=x, y=z})
     local base = SEA_LEVEL - 4 + c * 30
     local hills = math.max(h, 0) * 18
     local detail = d * 3
-
     local y = base + hills + detail
-
     if y < MIN_BUILD_Y + 8 then y = MIN_BUILD_Y + 8 end
     if y > MAX_BUILD_Y - 16 then y = MAX_BUILD_Y - 16 end
-
     return math.floor(y + 0.5)
 end
 
 local function climate_params(x, z)
     ensure_noises()
-
-    local T = 0.5 + 0.5 * n_temp:get_2d({x=x, y=z}) -- 0..1
-    local H = 0.5 + 0.5 * n_humid:get_2d({x=x, y=z}) -- 0..1
-    local M = 0.5 + 0.5 * n_moist:get_2d({x=x, y=z}) -- 0..1
-
-    return { T = T, H = H, M = M }
+    return {
+        T = 0.5 + 0.5 * n_temp:get_2d({x=x, y=z}),
+        H = 0.5 + 0.5 * n_humid:get_2d({x=x, y=z}),
+        M = 0.5 + 0.5 * n_moist:get_2d({x=x, y=z})
+    }
 end
 
 --------------------------------------------------
 -- Biome definitions
--- Easy to tweak/add: ranges in temp/moist/height
 --------------------------------------------------
 
 local biomes = {
@@ -194,9 +173,7 @@ local biomes = {
         node_stone = cid.stone,
         min_y = MIN_BUILD_Y,
         max_y = MAX_BUILD_Y,
-        cond = function(p)
-            return p.T > 0.7 and p.M < 0.25 and p.height > SEA_LEVEL - 3
-        end,
+        cond = function(p) return p.T > 0.7 and p.M < 0.25 and p.height > SEA_LEVEL - 3 end,
     },
     {
         name = "swamp",
@@ -205,9 +182,7 @@ local biomes = {
         node_stone = cid.stone,
         min_y = MIN_BUILD_Y,
         max_y = SEA_LEVEL + 2,
-        cond = function(p)
-            return p.M > 0.7 and p.height <= SEA_LEVEL + 1 and p.height >= SEA_LEVEL - 4
-        end,
+        cond = function(p) return p.M > 0.7 and p.height <= SEA_LEVEL + 1 and p.height >= SEA_LEVEL - 4 end,
     },
     {
         name = "meadow",
@@ -216,9 +191,7 @@ local biomes = {
         node_stone = cid.stone,
         min_y = SEA_LEVEL + 1,
         max_y = MAX_BUILD_Y,
-        cond = function(p)
-            return p.T >= 0.4 and p.T <= 0.8 and p.M >= 0.3 and p.M <= 0.8 and p.height > SEA_LEVEL + 4
-        end,
+        cond = function(p) return p.T >= 0.4 and p.T <= 0.8 and p.M >= 0.3 and p.M <= 0.8 and p.height > SEA_LEVEL + 4 end,
     },
     {
         name = "plains",
@@ -227,9 +200,7 @@ local biomes = {
         node_stone = cid.stone,
         min_y = SEA_LEVEL - 2,
         max_y = MAX_BUILD_Y,
-        cond = function(p)
-            return p.T > 0.45 and p.M > 0.25 and p.M < 0.75
-        end,
+        cond = function(p) return p.T > 0.45 and p.M > 0.25 and p.M < 0.75 end,
     },
     {
         name = "forest",
@@ -238,9 +209,7 @@ local biomes = {
         node_stone = cid.stone,
         min_y = SEA_LEVEL,
         max_y = MAX_BUILD_Y,
-        cond = function(p)
-            return p.T > 0.45 and p.M >= 0.6
-        end,
+        cond = function(p) return p.T > 0.45 and p.M >= 0.6 end,
     },
     {
         name = "birch_forest",
@@ -249,9 +218,7 @@ local biomes = {
         node_stone = cid.stone,
         min_y = SEA_LEVEL,
         max_y = MAX_BUILD_Y,
-        cond = function(p)
-            return p.T > 0.5 and p.T < 0.8 and p.M > 0.45 and p.M < 0.75
-        end,
+        cond = function(p) return p.T > 0.5 and p.T < 0.8 and p.M > 0.45 and p.M < 0.75 end,
     },
     {
         name = "taiga",
@@ -260,23 +227,18 @@ local biomes = {
         node_stone = cid.stone,
         min_y = SEA_LEVEL - 2,
         max_y = MAX_BUILD_Y,
-        cond = function(p)
-            return p.T >= 0.2 and p.T <= 0.45 and p.M > 0.4
-        end,
+        cond = function(p) return p.T >= 0.2 and p.T <= 0.45 and p.M > 0.4 end,
     },
     {
         name = "snowy_taiga",
-        node_top = cid.grass, -- swap for snow node when you have it
+        node_top = cid.grass,
         node_filler = cid.dirt,
         node_stone = cid.stone,
         min_y = SEA_LEVEL,
         max_y = MAX_BUILD_Y,
-        cond = function(p)
-            return p.T < 0.25 and p.height > SEA_LEVEL + 4
-        end,
+        cond = function(p) return p.T < 0.25 and p.height > SEA_LEVEL + 4 end,
     },
     {
-        -- Rare Clayspire Basin: inverted mesa-ish terracotta spikes
         name = "clayspire_basin",
         node_top = cid.terracotta_orange,
         node_filler = cid.terracotta_brown,
@@ -284,40 +246,23 @@ local biomes = {
         min_y = SEA_LEVEL + 4,
         max_y = MAX_BUILD_Y,
         cond = function(p)
-            -- Very rare mask using detail noise + dryness
-            return p.T > 0.6 and p.M < 0.4
-               and p.height > SEA_LEVEL + 8
-               and math.abs(p.detail) > 0.55
+            return p.T > 0.6 and p.M < 0.4 and p.height > SEA_LEVEL + 8 and math.abs(p.detail) > 0.55
         end,
     },
 }
 
 local function pick_biome(x, z, height)
     local c = climate_params(x, z)
-    -- include height + a little extra noise to break bands
-    local d = n_detail:get_2d({x=x, y=z})
     c.height = height
-    c.detail = d
+    c.detail = n_detail:get_2d({x=x, y=z})
 
-    -- priority order: special cases first
-    local chosen
     for _, b in ipairs(biomes) do
         if height >= b.min_y and height <= b.max_y and b.cond(c) then
-            chosen = b
-            break
+            return b
         end
     end
 
-    -- fallback
-    if not chosen then
-        if height < SEA_LEVEL - 4 then
-            chosen = biomes[1] -- ocean
-        else
-            chosen = biomes[6] -- plains
-        end
-    end
-
-    return chosen
+    return (height < SEA_LEVEL - 4) and biomes[1] or biomes[6]
 end
 
 --------------------------------------------------
@@ -338,9 +283,9 @@ local function compose_column(area, data, x, z, minp_y, maxp_y)
         if y <= gy then
             -- ground / underground
             if y == gy then
-                -- surface
-                if gy <= SEA_LEVEL - 2 and biome.name:find("ocean") then
-                    data[vi] = filler
+                -- SURFACE LOGIC: Prevent grass under water
+                if gy <= SEA_LEVEL then
+                    data[vi] = (biome.name == "desert") and cid.sand or filler
                 else
                     data[vi] = top
                 end
@@ -365,7 +310,6 @@ end
 --------------------------------------------------
 
 minetest.register_on_generated(function(minp, maxp, seed)
-    -- only handle our vertical range; let others do void below/above
     if maxp.y < MIN_BUILD_Y or minp.y > MAX_BUILD_Y then
         return
     end
@@ -376,20 +320,19 @@ minetest.register_on_generated(function(minp, maxp, seed)
     local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
     local data = vm:get_data()
 
-    local x0, x1 = minp.x, maxp.x
-    local z0, z1 = minp.z, maxp.z
-    local y0, y1 = minp.y, maxp.y
-
-    for z = z0, z1 do
-        for x = x0, x1 do
-            compose_column(area, data, x, z, y0, y1)
+    for z = minp.z, maxp.z do
+        for x = minp.x, maxp.x do
+            compose_column(area, data, x, z, minp.y, maxp.y)
         end
     end
 
     vm:set_data(data)
+    
+    -- Recalculate light and place decorations (trees/bees)
+    vm:set_lighting({day = 15, night = 0}, emin, emax)
+    minetest.generate_decorations(vm)
+
     vm:calc_lighting()
     vm:update_liquids()
     vm:write_to_map()
-
-    -- decor_postgen.lua will run separately and use the final surface
 end)
