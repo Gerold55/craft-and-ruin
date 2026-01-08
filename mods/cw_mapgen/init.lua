@@ -3,11 +3,12 @@ local mp = minetest.get_modpath(minetest.get_current_modname())
 dofile(mp .. "/mapgen_singlenode.lua")
 --dofile(mp .. "/mapgen_carpathian.lua")
 --dofile(mp .. "/mapgen_v7.lua")
-dofile(mp .. "/decor_postgen.lua")
+dofile(mp .. "/mapgen_pools.lua")
 dofile(mp .. "/grass_tint.lua")
 dofile(mp .. "/leaves_tint.lua")
 dofile(mp .. "/caves.lua")
 dofile(mp .. "/ores.lua")
+dofile(mp .. "/decor_postgen.lua")
 --dofile(MP.."/biome_mask.lua")                 -- ← defines cw_mapgen.get_biome_at + tint prefs
 -- your terrain generator runs here (heightfields, fill dirt/grass/water, etc.)
 --dofile(MP.."/swamp_decor_singlenode.lua")     -- ← adds reeds + lilypads + squat oaks in swamp
