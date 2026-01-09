@@ -287,3 +287,22 @@ for _, f in ipairs(flowers) do
   })
 end
 
+minetest.register_node("cw_core:dead_bush", {
+    description = "Dead Bush",
+    drawtype = "plantlike",
+    visual_scale = 1.0,
+    -- Use your specific texture name here
+    tiles = {"ws_dry_shrub.png"},
+    inventory_image = "ws_dry_shrub.png",
+    wield_image = "ws_dry_shrub.png",
+    paramtype = "light",
+    sunlight_propagates = true,
+    walkable = false,
+    buildable_to = true,
+    groups = {snappy = 3, flammable = 2, attached_node = 1},
+    sounds = {footstep = {name = "default_grass_footstep", gain = 0.5}},
+    selection_box = {
+        type = "fixed",
+        fixed = {-0.3, -0.5, -0.3, 0.3, 0.3, 0.3},
+    },
+})

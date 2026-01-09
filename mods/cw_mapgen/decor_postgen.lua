@@ -1,93 +1,148 @@
 -- ============================================================================
 -- cw_mapgen: decor_postgen.lua
--- Biomes: Meadow (Plains), Desert
--- Focus: Sparse trees, dense "nuisance" grass, and desert flora.
+-- Minecraft-style decoration rules
 -- ============================================================================
 
 local MODPATH = core.get_modpath("cw_core")
 
--- Clear existing decorations to prevent double-spawning
-minetest.clear_registered_decorations()
+core.clear_registered_decorations()
 
--- 1. SPARSE OAK (The Lone Oak look)
--- We use a deep negative offset to make these extremely rare.
-minetest.register_decoration({
-    name = "cw_mapgen:sparse_oak",
+-- ============================================================================
+-- 🌳 TREES — Minecraft spacing & rarity
+-- ============================================================================
+
+-- PLAINS / MEADOW: Lone Oaks (VERY RARE)
+core.register_decoration({
+    name = "cw_mapgen:meadow_oak_sparse",
     deco_type = "schematic",
     place_on = {"cw_core:grass_block"},
     biomes = {"meadow"},
-    sidelen = 80, -- Larger area calculation prevents clustering
+    sidelen = 96,
     noise_params = {
-        offset = -0.015,  -- Lower this (e.g., -0.02) if you want fewer trees
-        scale = 0.04, 
-        spread = {x=300, y=300, z=300}, 
-        seed = 2
+        offset = -0.02,
+        scale = 0.035,
+        spread = {x=400, y=400, z=400},
+        seed = 101
     },
     schematic = MODPATH .. "/schematics/tree_oak.mts",
     flags = "place_center_x, place_center_z",
     rotation = "random",
 })
 
--- 2. RARE BIRCH (Isolated patches)
-minetest.register_decoration({
-    name = "cw_mapgen:rare_birch",
+-- MEADOW: Rare Large Oaks
+core.register_decoration({
+    name = "cw_mapgen:meadow_oak_large",
     deco_type = "schematic",
     place_on = {"cw_core:grass_block"},
     biomes = {"meadow"},
-    sidelen = 80,
+    sidelen = 112,
     noise_params = {
-        offset = -0.05, 
-        scale = 0.1, 
-        spread = {x=150, y=150, z=150}, 
-        seed = 44
+        offset = -0.025,
+        scale = 0.03,
+        spread = {x=500, y=500, z=500},
+        seed = 202
     },
-    schematic = MODPATH .. "/schematics/tree_birch.mts",
-    flags = "place_center_x, place_center_z",
+    schematic = MODPATH .. "/schematics/tree_oak_large.mts",
+    flags = "place_center_x, place_center_z, force_placement",
+    place_offset_y = 1,
+    rotation = "random",
 })
 
--- 3. THE "NUISANCE" (Tall Grass & Flowers)
--- This is kept dense to give the plains texture without needing trees.
-minetest.register_decoration({
-    name = "cw_mapgen:plains_flora",
+-- FOREST: Dense Oaks
+core.register_decoration({
+    name = "cw_mapgen:forest_oak",
+    deco_type = "schematic",
+    place_on = {"cw_core:grass_block"},
+    biomes = {"forest, meadow"},
+    sidelen = 48,
+    noise_params = {
+        offset = -0.01,
+        scale = 0.08,
+        spread = {x=180, y=180, z=180},
+        seed = 303
+    },
+    schematic = MODPATH .. "/schematics/tree_oak.mts",
+    flags = "place_center_x, place_center_z, force_placement",
+    place_offset_y = 1,
+    rotation = "random",
+})
+
+-- BIRCH FOREST: Birch-dominant
+core.register_decoration({
+    name = "cw_mapgen:birch_forest_birch",
+    deco_type = "schematic",
+    place_on = {"cw_core:grass_block"},
+    biomes = {"birch_forest"},
+    sidelen = 48,
+    noise_params = {
+        offset = -0.015,
+        scale = 0.06,
+        spread = {x=220, y=220, z=220},
+        seed = 404
+    },
+    schematic = MODPATH .. "/schematics/tree_birch.mts",
+    flags = "place_center_x, place_center_z, force_placement",
+    place_offset_y = 1,
+    rotation = "random",
+})
+
+-- ============================================================================
+-- 🌾 GRASS & FLOWERS — Dense but naturally clumped
+-- ============================================================================
+
+core.register_decoration({
+    name = "cw_mapgen:meadow_grass",
     deco_type = "simple",
     place_on = {"cw_core:grass_block"},
     biomes = {"meadow"},
-    fill_ratio = 0.06, -- Roughly 6% of grass blocks will have decor
+    sidelen = 16,
+    noise_params = {
+        offset = 0.0,
+        scale = 0.15,
+        spread = {x=32, y=32, z=32},
+        seed = 505
+    },
     decoration = {
-        "cw_core:grass_decor", 
-        "cw_core:grass_tall", 
-        "cw_core:flower_dandelion", 
-        "cw_core:flower_bluebell", 
+        "cw_core:grass_decor",
+        "cw_core:grass_tall",
+        "cw_core:flower_dandelion",
+        "cw_core:flower_bluebell",
         "cw_core:flower_daisy"
     },
 })
 
--- 4. DESERT DEAD BUSHES
-minetest.register_decoration({
-    name = "cw_mapgen:dead_bushes",
+-- ============================================================================
+-- 🌵 DESERT DECOR — Sparse, intentional
+-- ============================================================================
+
+core.register_decoration({
+    name = "cw_mapgen:dry_flora",
     deco_type = "simple",
     place_on = {"cw_core:sand"},
-    biomes = {"desert"}, -- REMOVE "meadow" or any other biome here
-    fill_ratio = 0.01,
-    decoration = "cw_core:dead_bush",
+    biomes = {"desert"}, -- Engine checks the Heat > 70 wall here
+    fill_ratio = 0.02,
+    decoration = {"cw_core:cactus", "cw_core:dead_bush"},
 })
 
--- 5. REEDS (Sugar Cane - Near water only)
-minetest.register_decoration({
+-- ============================================================================
+-- 🌊 REEDS — Minecraft-accurate
+-- ============================================================================
+
+core.register_decoration({
     name = "cw_mapgen:reeds",
     deco_type = "simple",
     place_on = {"cw_core:grass_block", "cw_core:sand"},
     biomes = {"meadow", "desert"},
     sidelen = 16,
     noise_params = {
-        offset = 0.02, 
-        scale = 0.1, 
-        spread = {x=20, y=20, z=20}, 
-        seed = 123
+        offset = 0.01,
+        scale = 0.06,
+        spread = {x=24, y=24, z=24},
+        seed = 707
     },
     decoration = "cw_core:reeds",
-    height = 2, 
+    height = 2,
     height_max = 4,
     spawn_by = "cw_core:water_source",
-    num_spawn_by = 1, -- Must be touching water
+    num_spawn_by = 1,
 })

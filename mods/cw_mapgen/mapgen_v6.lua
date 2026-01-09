@@ -1,85 +1,74 @@
-minetest.register_on_generated(function(minp, maxp, seed)
-    local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
-    local data = vm:get_data()
-    local area = VoxelArea:new{MinEdge=emin, MaxEdge=emax}
+-- ============================================================================
+-- cw_mapgen: mapgen.lua (Clean v6 Foundation)
+-- ============================================================================
 
-    -- 1. Content IDs
-    local c_stone = minetest.get_content_id("cw_core:stone")
-    local c_dirt  = minetest.get_content_id("cw_core:dirt")
-    local c_grass = minetest.get_content_id("cw_core:grass")
-    local c_sand  = minetest.get_content_id("cw_core:sand")
-    local c_terra = minetest.get_content_id("cw_core:terracotta_red")
-    local c_water = minetest.get_content_id("cw_core:water_source")
+-- 1. DISABLE ALL DEFAULT ENGINE FEATURES
+minetest.set_mapgen_setting("mgv6_spflags", "notrees, nojungles, nobiomeblend, nomudflow", true)
+minetest.set_mapgen_setting("mg_flags", "nocaves, nodungeons", true)
 
-    -- 2. Noise Setup (Seeded globally to prevent chunk lines)
-    -- Height: Lower scale and higher spread for that "v6" rolling plains feel
-    local perlin_height = minetest.get_perlin(12345, 4, 0.5, 200)
-    -- Temperature: Determines the Biome (Heat)
-    local perlin_temp   = minetest.get_perlin(67890, 3, 0.5, 500)
+-- 2. MAPGEN ALIASES (Mapping engine names to YOUR custom nodes)
+minetest.register_alias("mapgen_stone", "cw_core:stone")
+minetest.register_alias("mapgen_water_source", "cw_core:water_source")
+minetest.register_alias("mapgen_river_water_source", "cw_core:water_source")
 
-    -- 3. Generation Loop
-    -- Order MUST be Z -> X -> Y to prevent the "Shifted Layer" issue
-    for z = minp.z, maxp.z do
-        for x = minp.x, maxp.x do
-            
-            -- Get global height and temperature for this column
-            local noise_h = perlin_height:get_2d({x=x, y=z})
-            local temp    = perlin_temp:get_2d({x=x, y=z})
-            
-            -- Calculate actual height (v6 style scaling)
-            local surface_y = math.floor(noise_h * 15 + 10)
-            
-            -- Determine Biome type (Minecraft v6 Temperature Logic)
-            local biome = "meadow"
-            if temp > 0.4 then
-                biome = "desert"
-            elseif temp < -0.4 then
-                biome = "clayspire"
-            end
+-- Dummy out things we don't want (Ensures no apples or default trees)
+minetest.register_alias("mapgen_tree", "cw_core:log_oak")
+minetest.register_alias("mapgen_leaves", "cw_core:leaves_oak")
+minetest.register_alias("mapgen_apple", "air")
+minetest.register_alias("mapgen_jungle_tree", "air")
 
-            for y = minp.y, maxp.y do
-                local vi = area:index(x, y, z)
-                
-                if y <= surface_y then
-                    -- Absolute Depth calculation (The FIX for dirt lines)
-                    local depth = surface_y - y
+-- 3. CLEAR AND DEFINE CUSTOM BIOMES
+minetest.clear_registered_biomes()
+minetest.clear_registered_decorations()
 
-                    if depth == 0 then
-                        -- SURFACE
-                        if y <= 5 then 
-                            data[vi] = c_sand -- Beach
-                        elseif biome == "desert" then 
-                            data[vi] = c_sand
-                        elseif biome == "clayspire" then 
-                            data[vi] = c_terra
-                        else 
-                            data[vi] = c_grass 
-                        end
-                    elseif depth <= 3 then
-                        -- FILLER
-                        if biome == "desert" then 
-                            data[vi] = c_sand
-                        elseif biome == "clayspire" then 
-                            data[vi] = c_terra
-                        else 
-                            data[vi] = c_dirt 
-                        end
-                    else
-                        -- CORE
-                        data[vi] = c_stone
-                    end
-                else
-                    -- ABOVE GROUND
-                    if y <= 5 then
-                        data[vi] = c_water
-                    end
-                end
-            end
-        end
-    end
+-- BEACH: Clean Sand, No Shrubs, Low elevation
+minetest.register_biome({
+    name = "beach",
+    node_top = "cw_core:sand",
+    depth_top = 1,
+    node_filler = "cw_core:sand",
+    depth_filler = 3,
+    y_max = 2,
+    y_min = -10,
+    heat_point = 50,
+    humidity_point = 40,
+})
 
-    -- 4. Finalize
-    vm:set_data(data)
-    vm:set_lighting({day=15, night=0})
-    vm:write_to_map()
-end)
+-- PLAINS: Standard Grass for your Custom Trees and Packages
+minetest.register_biome({
+    name = "plains",
+    node_top = "cw_core:grass_block",
+    depth_top = 1,
+    node_filler = "cw_core:dirt",
+    depth_filler = 3,
+    y_max = 31000,
+    y_min = 3,
+    heat_point = 50,
+    humidity_point = 50,
+})
+
+-- MEADOW: Lush version of Plains
+minetest.register_biome({
+    name = "meadow",
+    node_top = "cw_core:grass_block",
+    depth_top = 1,
+    node_filler = "cw_core:dirt",
+    depth_filler = 3,
+    y_max = 31000,
+    y_min = 3,
+    heat_point = 40,
+    humidity_point = 85,
+})
+
+-- DESERT: Sand for Dry Shrubs only
+minetest.register_biome({
+    name = "desert",
+    node_top = "cw_core:sand",
+    depth_top = 1,
+    node_filler = "cw_core:sand",
+    depth_filler = 3,
+    y_max = 31000,
+    y_min = 3,
+    heat_point = 90,
+    humidity_point = 10,
+})

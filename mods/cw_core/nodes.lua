@@ -104,6 +104,14 @@ minetest.register_node("cw_core:dirt", {
   sounds = node_sound_dirt(),
 })
 
+minetest.register_node("cw_core:dirt_coarse", {
+  description = S("Coarse Dirt"),
+  tiles = {"cw_coarse_dry.png.png"},
+  is_ground_content = true,
+  groups = {crumbly=2, soil=1},
+  sounds = node_sound_dirt(),
+})
+
 minetest.register_node("cw_core:podzol", {
   description = S("Podzol"),
   tiles = {
@@ -244,6 +252,7 @@ minetest.register_node("cw_core:log_oak", {
   paramtype2 = "facedir",
   groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+  on_place = minetest.rotate_node
 })
 
 minetest.register_node("cw_core:planks_oak", {
@@ -260,6 +269,7 @@ minetest.register_node("cw_core:log_birch", {
   paramtype2 = "facedir",
   groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+  on_place = minetest.rotate_node
 })
 
 minetest.register_node("cw_core:planks_birch", {
@@ -276,6 +286,7 @@ minetest.register_node("cw_core:log_spruce", {
   paramtype2 = "facedir",
   groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+  on_place = minetest.rotate_node
 })
 
 minetest.register_node("cw_core:planks_spruce", {
@@ -292,6 +303,7 @@ minetest.register_node("cw_core:log_jungle", {
   paramtype2 = "facedir",
   groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+  on_place = minetest.rotate_node
 })
 
 minetest.register_node("cw_core:planks_jungle", {
@@ -755,7 +767,6 @@ minetest.register_node("cw_core:grass_block_snow", {
   },
   overlay_tiles = {
     "", "",
-    { name="cw_grass_side_overlay.png", tileable_vertical=false },
     { name="cw_grass_side_snow_overlay.png", color="white", tileable_vertical=false },
   },
   paramtype2    = "color",
@@ -932,12 +943,6 @@ minetest.register_node(modname..":cactus", {
   paramtype2="facedir",
   groups={snappy=1,choppy=3,oddly_breakable_by_hand=1,flammable=1,cactus=1},
   sounds=node_sound_wood(),
-})
-minetest.register_node(modname..":dead_bush", {
-  description="Dead Bush", drawtype="plantlike",
-  tiles={"cw_dead_bush.png"}, inventory_image="cw_dead_bush.png", wield_image="cw_dead_bush.png",
-  use_texture_alpha="clip", paramtype="light", sunlight_propagates=true, walkable=false, buildable_to=true,
-  groups={snappy=3,flammable=2,attached_node=1}, sounds=node_sound_leaves(),
 })
 
 -- =========================
