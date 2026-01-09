@@ -1,8 +1,8 @@
 -- Cube_World: cw_core/nodes.lua
 -- All node registrations live here. Requires cw_core/biome_tint.lua.
 
-local modname = minetest.get_current_modname()
-local S = (minetest.get_translator and minetest.get_translator(modname)) or function(s) return s end
+local modname = core.get_current_modname()
+local S = (core.get_translator and core.get_translator(modname)) or function(s) return s end
 
 -- =========================
 -- Simple sound helpers
@@ -54,7 +54,7 @@ end
 cw_core = rawget(_G, "cw_core") or {}
 
 -- Bring in biome tint helpers (SPECS, clamp/preferred index)
-local biome_mod = dofile(minetest.get_modpath("cw_core").."/biome_tint.lua")
+local biome_mod = dofile(core.get_modpath("cw_core").."/biome_tint.lua")
 local biome_tint = biome_mod and biome_mod.biome_tint or cw_core.biome_tint
 
 -- small utils
@@ -64,14 +64,14 @@ local function _clamp(a, lo, hi) if a < lo then return lo elseif a > hi then ret
 -- Core terrain nodes
 -- =========================
 
-minetest.register_node("cw_core:bedrock", {
+core.register_node("cw_core:bedrock", {
   description = S("Bedrock"),
   tiles = {"cw_bedrock.png"},
   is_ground_content = true,
   sounds = node_sound_stone(),
 })
 
-minetest.register_node("cw_core:stone", {
+core.register_node("cw_core:stone", {
   description = S("Stone"),
   tiles = {"cw_stone.png"},
   drop = "cw_core:cobble",
@@ -80,7 +80,7 @@ minetest.register_node("cw_core:stone", {
   sounds = node_sound_stone(),
 })
 
-minetest.register_node("cw_core:cobble", {
+core.register_node("cw_core:cobble", {
   description = S("Cobblestone"),
   tiles = {"cw_cobblestone.png"},
   is_ground_content = true,
@@ -88,7 +88,7 @@ minetest.register_node("cw_core:cobble", {
   sounds = node_sound_stone(),
 })
 
-minetest.register_node("cw_core:snow", {
+core.register_node("cw_core:snow", {
   description = S("Snow"),
   tiles = {"cw_snow.png"},
   is_ground_content = true,
@@ -96,7 +96,7 @@ minetest.register_node("cw_core:snow", {
   sounds = node_sound_dirt(),
 })
 
-minetest.register_node("cw_core:dirt", {
+core.register_node("cw_core:dirt", {
   description = S("Dirt"),
   tiles = {"cw_dirt.png"},
   is_ground_content = true,
@@ -104,7 +104,7 @@ minetest.register_node("cw_core:dirt", {
   sounds = node_sound_dirt(),
 })
 
-minetest.register_node("cw_core:dirt_coarse", {
+core.register_node("cw_core:dirt_coarse", {
   description = S("Coarse Dirt"),
   tiles = {"cw_coarse_dry.png.png"},
   is_ground_content = true,
@@ -112,7 +112,7 @@ minetest.register_node("cw_core:dirt_coarse", {
   sounds = node_sound_dirt(),
 })
 
-minetest.register_node("cw_core:podzol", {
+core.register_node("cw_core:podzol", {
   description = S("Podzol"),
   tiles = {
     "ws_forest_litter.png",
@@ -124,7 +124,7 @@ minetest.register_node("cw_core:podzol", {
   sounds = node_sound_dirt(),
 })
 
-minetest.register_node("cw_core:mud", {
+core.register_node("cw_core:mud", {
   description = S("Mud"),
   tiles = {"cw_mud.png"},
   is_ground_content = true,
@@ -133,7 +133,7 @@ minetest.register_node("cw_core:mud", {
 })
 
 -- (Neutral placeholder if mapgen places it directly, but our palette variant below replaces behavior)
-minetest.register_node("cw_core:grass_block_neutral", {
+core.register_node("cw_core:grass_block_neutral", {
   description = S("Grass Block (Neutral)"),
   tiles = {
     "cw_grass_top.png",
@@ -150,7 +150,7 @@ minetest.register_node("cw_core:grass_block_neutral", {
 -- Ores & Associates
 -- =========================
 
-minetest.register_node("cw_core:ore_coal", {
+core.register_node("cw_core:ore_coal", {
 	description = S("Coal Ore"),
 	tiles = {"coal_ore.png"},
 	groups = {cracky = 3},
@@ -158,7 +158,7 @@ minetest.register_node("cw_core:ore_coal", {
 	sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_node("cw_core:coalblock", {
+core.register_node("cw_core:coalblock", {
 	description = S("Coal Block"),
 	tiles = {"coal_block.png"},
 	is_ground_content = false,
@@ -166,13 +166,13 @@ minetest.register_node("cw_core:coalblock", {
 	sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_craftitem("cw_core:lump_coal", {
+core.register_craftitem("cw_core:lump_coal", {
 	description = S("Coal"),
 	inventory_image = "coal.png",
 	groups = {coal = 1, flammable = 1}
 })
 
-minetest.register_node("cw_core:ore_iron", {
+core.register_node("cw_core:ore_iron", {
 	description = S("Iron Ore"),
 	tiles = {"iron_ore.png"},
 	groups = {cracky = 3},
@@ -180,19 +180,19 @@ minetest.register_node("cw_core:ore_iron", {
 	sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_craftitem("cw_core:lump_iron", {
+core.register_craftitem("cw_core:lump_iron", {
 	description = S("Iron Lump"),
 	inventory_image = "iron.png",
 	groups = {iron = 1}
 })
 
-minetest.register_craftitem("cw_core:nugget_iron", {
+core.register_craftitem("cw_core:nugget_iron", {
 	description = S("Iron Nugget"),
 	inventory_image = "iron_nugget.png",
 	groups = {iron = 1}
 })
 
-minetest.register_node("cw_core:ore_copper", {
+core.register_node("cw_core:ore_copper", {
 	description = S("Copper Ore"),
 	tiles = {"copper_ore.png"},
 	groups = {cracky = 3},
@@ -200,7 +200,7 @@ minetest.register_node("cw_core:ore_copper", {
 	sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_node("cw_core:copper_block", {
+core.register_node("cw_core:copper_block", {
 	description = S("Copper Block"),
 	tiles = {"copper_block.png"},
 	is_ground_content = false,
@@ -208,13 +208,13 @@ minetest.register_node("cw_core:copper_block", {
 	sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_craftitem("cw_core:lump_copper", {
+core.register_craftitem("cw_core:lump_copper", {
 	description = S("Copper"),
 	inventory_image = "copper.png",
 	groups = {coal = 1, flammable = 1}
 })
 
-minetest.register_node("cw_core:ore_gold", {
+core.register_node("cw_core:ore_gold", {
 	description = S("Gold Ore"),
 	tiles = {"gold_ore.png"},
 	groups = {cracky = 3},
@@ -222,7 +222,7 @@ minetest.register_node("cw_core:ore_gold", {
 	sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_node("cw_core:gold_block", {
+core.register_node("cw_core:gold_block", {
 	description = S("Gold Block"),
 	tiles = {"gold_block.png"},
 	is_ground_content = false,
@@ -230,13 +230,13 @@ minetest.register_node("cw_core:gold_block", {
 	sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_craftitem("cw_core:lump_gold", {
+core.register_craftitem("cw_core:lump_gold", {
 	description = S("Gold"),
 	inventory_image = "gold.png",
 	groups = {gold = 1}
 })
 
-minetest.register_craftitem("cw_core:nugget_gold", {
+core.register_craftitem("cw_core:nugget_gold", {
 	description = S("Gold Nugget"),
 	inventory_image = "gold_nugget.png",
 	groups = {gold = 1}
@@ -246,16 +246,16 @@ minetest.register_craftitem("cw_core:nugget_gold", {
 -- Wood & foliage
 -- =========================
 
-minetest.register_node("cw_core:log_oak", {
+core.register_node("cw_core:log_oak", {
   description = S("Oak Log"),
   tiles = {"cw_oak_log_top.png","cw_oak_log_top.png","cw_oak_log.png"},
   paramtype2 = "facedir",
   groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
-  on_place = minetest.rotate_node
+  on_place = core.rotate_node
 })
 
-minetest.register_node("cw_core:planks_oak", {
+core.register_node("cw_core:planks_oak", {
   description = S("Oak Planks"),
   tiles = {"oak_planks.png"},
   paramtype2 = "facedir",
@@ -263,16 +263,16 @@ minetest.register_node("cw_core:planks_oak", {
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_node("cw_core:log_birch", {
+core.register_node("cw_core:log_birch", {
   description = S("Birch Log"),
   tiles = {"cw_birch_log_top.png","cw_birch_log_top.png","cw_birch_log.png"},
   paramtype2 = "facedir",
   groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
-  on_place = minetest.rotate_node
+  on_place = core.rotate_node
 })
 
-minetest.register_node("cw_core:planks_birch", {
+core.register_node("cw_core:planks_birch", {
   description = S("Birch Planks"),
   tiles = {"cw_birch_planks.png"},
   paramtype2 = "facedir",
@@ -280,16 +280,16 @@ minetest.register_node("cw_core:planks_birch", {
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_node("cw_core:log_spruce", {
+core.register_node("cw_core:log_spruce", {
   description = S("Spruce Log"),
   tiles = {"cw_spruce_log_top.png","cw_spruce_log_top.png","cw_spruce_log.png"},
   paramtype2 = "facedir",
   groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
-  on_place = minetest.rotate_node
+  on_place = core.rotate_node
 })
 
-minetest.register_node("cw_core:planks_spruce", {
+core.register_node("cw_core:planks_spruce", {
   description = S("Spruce Planks"),
   tiles = {"cw_spruce_planks.png"},
   paramtype2 = "facedir",
@@ -297,16 +297,16 @@ minetest.register_node("cw_core:planks_spruce", {
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_node("cw_core:log_jungle", {
+core.register_node("cw_core:log_jungle", {
   description = S("Jungle Log"),
   tiles = {"cw_jungle_log_top.png","cw_jungle_log_top.png","cw_jungle_log.png"},
   paramtype2 = "facedir",
   groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
-  on_place = minetest.rotate_node
+  on_place = core.rotate_node
 })
 
-minetest.register_node("cw_core:planks_jungle", {
+core.register_node("cw_core:planks_jungle", {
   description = S("Jungle Planks"),
   tiles = {"cw_jungle_planks.png"},
   paramtype2 = "facedir",
@@ -314,16 +314,16 @@ minetest.register_node("cw_core:planks_jungle", {
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_node("cw_core:log_cherry", {
+core.register_node("cw_core:log_cherry", {
   description = S("Cherry Log"),
   tiles = {"cherry_log_top.png","cherry_log_top.png","cherry_log.png"},
   paramtype2 = "facedir",
   groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
-  on_place = minetest.rotate_node
+  on_place = core.rotate_node
 })
 
-minetest.register_node("cw_core:planks_cherry", {
+core.register_node("cw_core:planks_cherry", {
   description = S("Cherry Planks"),
   tiles = {"cherry_planks.png"},
   paramtype2 = "facedir",
@@ -331,7 +331,7 @@ minetest.register_node("cw_core:planks_cherry", {
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
-minetest.register_node("cw_core:leaves_cherry", {
+core.register_node("cw_core:leaves_cherry", {
     description = "Cherry Leaves",
     drawtype = "allfaces_optional",
     waving = 1,
@@ -359,7 +359,7 @@ minetest.register_node("cw_core:leaves_cherry", {
 local FOLIAGE_PALETTE = "cw_foliage_palette.png" -- 1x16 vertical
 
 -- Fallback humidity→palette (only used if biome has no preferred index)
-local settings = minetest.settings
+local settings = core.settings
 local F_MIN   = tonumber(settings:get("cw_foliage_palette_min_idx")) or 3
 local F_MAX   = tonumber(settings:get("cw_foliage_palette_max_idx")) or 12
 local F_GAMMA = tonumber(settings:get("cw_foliage_palette_gamma"))  or 0.9
@@ -382,13 +382,13 @@ end
 cw_core.foliage_humidity_to_palette = foliage_humidity_to_palette
 
 --local lo =
---	tonumber(minetest.settings:get("cw_grass_palette_min_idx")) or 4
+--	tonumber(core.settings:get("cw_grass_palette_min_idx")) or 4
 --  local hi =
---	tonumber(minetest.settings:get("cw_grass_palette_max_idx")) or 11
+--	tonumber(core.settings:get("cw_grass_palette_max_idx")) or 11
 --  idx = jitter_idx(idx, lo, hi)
 
 local function humidity_at(pos)
-  local ok, data = pcall(minetest.get_biome_data, pos)
+  local ok, data = pcall(core.get_biome_data, pos)
   return (ok and data and data.humidity) or 50
 end
 
@@ -400,17 +400,17 @@ local function choose_leaf_index_for_pos(pos)
 end
 
 function cw_core.update_leaf_tint(pos, keep_idx)
-  local node = minetest.get_node(pos)
-  local def = minetest.registered_nodes[node.name]
+  local node = core.get_node(pos)
+  local def = core.registered_nodes[node.name]
   if not def or def.paramtype2 ~= "color" or not def.palette then return end
   local idx = keep_idx or choose_leaf_index_for_pos(pos)
   if (node.param2 or 0) ~= idx then
     node.param2 = idx
-    minetest.swap_node(pos, node)
+    core.swap_node(pos, node)
   end
 end
 
-minetest.register_node("cw_core:leaves_oak", {
+core.register_node("cw_core:leaves_oak", {
   description = "Oak Leaves",
   drawtype = "allfaces_optional",
   waving = 1,
@@ -434,7 +434,7 @@ minetest.register_node("cw_core:leaves_oak", {
   end,
 })
 
-minetest.register_node("cw_core:leaves_birch", {
+core.register_node("cw_core:leaves_birch", {
   description = "Birch Leaves",
   drawtype = "allfaces_optional",
   waving = 1,
@@ -458,7 +458,7 @@ minetest.register_node("cw_core:leaves_birch", {
   end,
 })
 
-minetest.register_node("cw_core:leaves_spruce", {
+core.register_node("cw_core:leaves_spruce", {
   description = "Spruce Leaves",
   drawtype = "allfaces_optional",
   waving = 1,
@@ -482,7 +482,7 @@ minetest.register_node("cw_core:leaves_spruce", {
   end,
 })
 
-minetest.register_node("cw_core:leaves_jungle", {
+core.register_node("cw_core:leaves_jungle", {
   description = "Jungle Leaves",
   drawtype = "allfaces_optional",
   waving = 1,
@@ -507,12 +507,12 @@ minetest.register_node("cw_core:leaves_jungle", {
 })
 
 -- ========= One-time LBM to normalize legacy leaves (fixes chunk border mismatch) =========
-minetest.register_lbm({
+core.register_lbm({
   name = "cw_core:tint_leaves_once",
   nodenames = {"group:leaves"},
   run_at_every_load = false,
   action = function(pos, node)
-    local def = minetest.registered_nodes[node.name]
+    local def = core.registered_nodes[node.name]
     if not def or not (def.groups and def.groups.leaves) then return end
     if def.paramtype2 ~= "color" or not def.palette then return end
     cw_core.update_leaf_tint(pos)
@@ -520,19 +520,19 @@ minetest.register_lbm({
 })
 
 -- ========= Dev command: /retint_leaves [radius] =========
-minetest.register_chatcommand("retint_leaves", {
+core.register_chatcommand("retint_leaves", {
   params = "[radius]",
   description = "Force-retint palette leaves in a radius (default 96).",
   privs = {server = true},
   func = function(name, param)
     local radius = tonumber(param) or 96
-    local player = minetest.get_player_by_name(name)
+    local player = core.get_player_by_name(name)
     if not player then return false, "No player." end
     local p = vector.round(player:get_pos())
     local minp = vector.subtract(p, radius)
     local maxp = vector.add(p, radius)
 
-    local vm = minetest.get_voxel_manip()
+    local vm = core.get_voxel_manip()
     local emin, emax = vm:read_from_map(minp, maxp)
     local area = VoxelArea:new({MinEdge=emin, MaxEdge=emax})
     local data = vm:get_data()
@@ -540,10 +540,10 @@ minetest.register_chatcommand("retint_leaves", {
 
     -- Build a set of palette-leaf content IDs
     local LEAF_CID = {}
-    for name2, def in pairs(minetest.registered_nodes) do
+    for name2, def in pairs(core.registered_nodes) do
       if def and def.groups and def.groups.leaves
          and def.paramtype2 == "color" and def.palette then
-        LEAF_CID[minetest.get_content_id(name2)] = true
+        LEAF_CID[core.get_content_id(name2)] = true
       end
     end
 
@@ -559,7 +559,7 @@ minetest.register_chatcommand("retint_leaves", {
             if pref ~= nil then
               idx = pref
             else
-              local ok, bd = pcall(minetest.get_biome_data, {x=x,y=y,z=z})
+              local ok, bd = pcall(core.get_biome_data, {x=x,y=y,z=z})
               local h = (ok and bd and bd.humidity) or 50
               local base = foliage_humidity_to_palette(h)
               idx = (biome_tint and biome_tint.clamp_leaf_index({x=x,y=y,z=z}, base)) or base
@@ -579,7 +579,7 @@ minetest.register_chatcommand("retint_leaves", {
 })
 
 -- SAPLING (simple placeholder that calls cw_core.grow_oak if you provide it)
-minetest.register_node("cw_core:oak_sapling", {
+core.register_node("cw_core:oak_sapling", {
   description = S("Oak Sapling"),
   drawtype = "plantlike",
   tiles = {"cw_oak_sapling.png"},
@@ -592,10 +592,10 @@ minetest.register_node("cw_core:oak_sapling", {
   groups = {snappy=2, dig_immediate=3, flammable=2, attached_node=1, sapling=1},
   selection_box = {type="fixed", fixed={-0.2,-0.5,-0.2, 0.2,0.35,0.2}},
   on_construct = function(pos)
-    minetest.get_node_timer(pos):start(math.random(60, 120))
+    core.get_node_timer(pos):start(math.random(60, 120))
   end,
   on_timer = function(pos)
-    local under = minetest.get_node({x=pos.x, y=pos.y-1, z=pos.z}).name
+    local under = core.get_node({x=pos.x, y=pos.y-1, z=pos.z}).name
     if under ~= "cw_core:dirt" and under ~= "cw_core:grass_block" and under ~= "cw_core:sand" then
       return true -- retry later
     end
@@ -607,7 +607,7 @@ minetest.register_node("cw_core:oak_sapling", {
   end,
 })
 
-minetest.register_node("cw_core:birch_sapling", {
+core.register_node("cw_core:birch_sapling", {
   description = S("Birch Sapling"),
   drawtype = "plantlike",
   tiles = {"cw_birch_sapling.png"},
@@ -620,10 +620,10 @@ minetest.register_node("cw_core:birch_sapling", {
   groups = {snappy=2, dig_immediate=3, flammable=2, attached_node=1, sapling=1},
   selection_box = {type="fixed", fixed={-0.2,-0.5,-0.2, 0.2,0.35,0.2}},
   on_construct = function(pos)
-    minetest.get_node_timer(pos):start(math.random(60, 120))
+    core.get_node_timer(pos):start(math.random(60, 120))
   end,
   on_timer = function(pos)
-    local under = minetest.get_node({x=pos.x, y=pos.y-1, z=pos.z}).name
+    local under = core.get_node({x=pos.x, y=pos.y-1, z=pos.z}).name
     if under ~= "cw_core:dirt" and under ~= "cw_core:grass_block" and under ~= "cw_core:sand" then
       return true -- retry later
     end
@@ -635,7 +635,7 @@ minetest.register_node("cw_core:birch_sapling", {
   end,
 })
 
-minetest.register_node("cw_core:cherry_sapling", {
+core.register_node("cw_core:cherry_sapling", {
   description = S("Cherry Sapling"),
   drawtype = "plantlike",
   tiles = {"cw_cherry_sapling.png"},
@@ -648,10 +648,10 @@ minetest.register_node("cw_core:cherry_sapling", {
   groups = {snappy=2, dig_immediate=3, flammable=2, attached_node=1, sapling=1},
   selection_box = {type="fixed", fixed={-0.2,-0.5,-0.2, 0.2,0.35,0.2}},
   on_construct = function(pos)
-    minetest.get_node_timer(pos):start(math.random(60, 120))
+    core.get_node_timer(pos):start(math.random(60, 120))
   end,
   on_timer = function(pos)
-    local under = minetest.get_node({x=pos.x, y=pos.y-1, z=pos.z}).name
+    local under = core.get_node({x=pos.x, y=pos.y-1, z=pos.z}).name
     if under ~= "cw_core:dirt" and under ~= "cw_core:grass_block" and under ~= "cw_core:sand" then
       return true -- retry later
     end
@@ -703,15 +703,15 @@ cw_core.humidity_to_palette = humidity_to_palette
 
 local function has_snow_above(pos)
   local up = {x=pos.x, y=pos.y+1, z=pos.z}
-  local nn = minetest.get_node(up).name
-  local def = minetest.registered_nodes[nn]
+  local nn = core.get_node(up).name
+  local def = core.registered_nodes[nn]
   return (def and def.groups and def.groups.snow and def.groups.snow > 0) or false
 end
 
 local function should_decay_to_dirt(pos)
   local up = {x=pos.x, y=pos.y+1, z=pos.z}
-  local upnode = minetest.get_node(up)
-  local updef  = minetest.registered_nodes[upnode.name]
+  local upnode = core.get_node(up)
+  local updef  = core.registered_nodes[upnode.name]
   if (not updef) or (not updef.walkable) or updef.buildable_to then return false end
   if updef.groups and updef.groups.snow and updef.groups.snow > 0 then return false end
   return true
@@ -736,31 +736,31 @@ function cw_core.pick_grass_variant_by_humidity(_)
 end
 
 function cw_core.update_grass_state(pos, force_snow, keep_idx)
-  local node = minetest.get_node(pos)
+  local node = core.get_node(pos)
   local snow = (force_snow == true) or has_snow_above(pos)
   local target = snow and "cw_core:grass_block_snow" or "cw_core:grass_block"
   local idx = keep_idx or choose_grass_index_for_pos(pos)
   if node.name ~= target or (node.param2 or 0) ~= idx then
-    minetest.swap_node(pos, { name = target, param2 = idx })
+    core.swap_node(pos, { name = target, param2 = idx })
   end
   
 --  local lo =
---	tonumber(minetest.settings:get("cw_grass_palette_min_idx")) or 4
+--	tonumber(core.settings:get("cw_grass_palette_min_idx")) or 4
 --  local hi =
---	tonumber(minetest.settings:get("cw_grass_palette_max_idx")) or 11
+--	tonumber(core.settings:get("cw_grass_palette_max_idx")) or 11
 --  idx = jitter_idx(idx, lo, hi)
   
   if target == "cw_core:grass_block" then
     if should_decay_to_dirt(pos) then
-      minetest.get_node_timer(pos):start(math.random(DECAY_SECONDS_MIN, DECAY_SECONDS_MAX))
+      core.get_node_timer(pos):start(math.random(DECAY_SECONDS_MIN, DECAY_SECONDS_MAX))
     else
-      minetest.get_node_timer(pos):stop()
+      core.get_node_timer(pos):stop()
     end
   end
 end
 
 -- Actual palette grass (uses paramtype2=color + overlay tint)
-minetest.register_node("cw_core:grass_block", {
+core.register_node("cw_core:grass_block", {
   description = "Grass Block",
   tiles = {
     "cw_grass_top.png",                            -- tinted
@@ -791,7 +791,7 @@ minetest.register_node("cw_core:grass_block", {
 
   on_timer = function(pos)
     if should_decay_to_dirt(pos) then
-      minetest.swap_node(pos, { name = "cw_core:dirt" })
+      core.swap_node(pos, { name = "cw_core:dirt" })
       return false
     end
     return true
@@ -799,7 +799,7 @@ minetest.register_node("cw_core:grass_block", {
 })
 
 -- Creative item (pretty icon) that swaps to palette node on place
-minetest.register_node("cw_core:grass_block_plains", {
+core.register_node("cw_core:grass_block_plains", {
   description = "Grass Block",
   tiles = {
     "cw_grass_top_plains.png",
@@ -816,13 +816,13 @@ minetest.register_node("cw_core:grass_block_plains", {
   drop   = "cw_core:dirt",
 
   after_place_node = function(pos)
-    minetest.swap_node(pos, { name = "cw_core:grass_block", param2 = 0 })
+    core.swap_node(pos, { name = "cw_core:grass_block", param2 = 0 })
     cw_core.update_grass_state(pos, false) -- snap to biome-preferred immediately
   end,
 })
 
 -- Snowed grass
-minetest.register_node("cw_core:grass_block_snow", {
+core.register_node("cw_core:grass_block_snow", {
   description = "Grass Block (Snowed)",
   tiles = {
     "cw_grass_top_snow.png",
@@ -845,7 +845,7 @@ minetest.register_node("cw_core:grass_block_snow", {
 })
 
 -- One-time LBM to retint existing maps
-minetest.register_lbm({
+core.register_lbm({
   name = "cw_core:tint_grass_once",
   nodenames = { "cw_core:grass_block", "cw_core:grass_block_snow" },
   run_at_every_load = false,
@@ -856,11 +856,11 @@ minetest.register_lbm({
 
 -- Legacy aliases (old g01..g16 series)
 for i = 1, 16 do
-  minetest.register_alias("cw_core:grass_block_g"..("%02d"):format(i), "cw_core:grass_block")
+  core.register_alias("cw_core:grass_block_g"..("%02d"):format(i), "cw_core:grass_block")
 end
 
 -- Grass spread ABM
-minetest.register_abm({
+core.register_abm({
   label = "cw_core:grass_spread",
   nodenames = { "cw_core:dirt" },
   neighbors = { "cw_core:grass_block", "cw_core:grass_block_snow" },
@@ -868,11 +868,11 @@ minetest.register_abm({
   chance   = 25,
   action = function(pos)
     local above = {x=pos.x, y=pos.y+1, z=pos.z}
-    local above_def = minetest.registered_nodes[minetest.get_node(above).name]
+    local above_def = core.registered_nodes[core.get_node(above).name]
     if above_def and above_def.walkable and not above_def.buildable_to then return end
-    local light = minetest.get_node_light(above, 0.5) or 0
+    local light = core.get_node_light(above, 0.5) or 0
     if light < 9 then return end
-    minetest.swap_node(pos, { name = "cw_core:grass_block", param2 = 0 })
+    core.swap_node(pos, { name = "cw_core:grass_block", param2 = 0 })
     cw_core.update_grass_state(pos)
   end
 })
@@ -891,7 +891,7 @@ core.register_node("cw_core:beach_sand", sand_def)
 core.register_node("cw_core:desert_sand", sand_def)
 core.register_node("cw_core:sand", sand_def)
 
-minetest.register_node("cw_core:sand_red", {
+core.register_node("cw_core:sand_red", {
   description = "Red Sand",
   tiles = {"cw_sand_red.png"},
   is_ground_content = true,
@@ -901,7 +901,7 @@ minetest.register_node("cw_core:sand_red", {
 local WATER_PALETTE = "cw_water_palette.png" -- 1x16 vertical
 
 -- --- WATER (STATIC SOURCE; palette-tinted, including inventory) -------------
-minetest.register_node("cw_core:water_source", {
+core.register_node("cw_core:water_source", {
   description = "Water Source",
   drawtype   = "liquid",
 
@@ -968,7 +968,7 @@ end
 -- -----------------------
 -- GRAVEL
 -- -----------------------
-minetest.register_node("cw_core:gravel", {
+core.register_node("cw_core:gravel", {
   description = "Gravel",
   tiles = {"cw_gravel.png"},            -- ↑ add this texture
   is_ground_content = true,
@@ -989,7 +989,7 @@ minetest.register_node("cw_core:gravel", {
 -- -----------------------
 -- CLAY
 -- -----------------------
-minetest.register_node("cw_core:clay", {
+core.register_node("cw_core:clay", {
   description = "Clay",
   tiles = {"cw_clay.png"},              -- ↑ add this texture
   is_ground_content = true,
@@ -1007,7 +1007,7 @@ minetest.register_node("cw_core:clay", {
 })
 
 -- -------- Desert props (future biome) --------
-minetest.register_node(modname..":cactus", {
+core.register_node(modname..":cactus", {
   description="Cactus",
   tiles={"cw_cactus_top.png","cw_cactus_top.png","cw_cactus_side.png"},
   paramtype2="facedir",
@@ -1018,6 +1018,6 @@ minetest.register_node(modname..":cactus", {
 -- =========================
 -- Mapgen aliases (optional)
 -- =========================
-minetest.register_alias("mapgen_stone", "cw_core:stone")
-minetest.register_alias("mapgen_dirt",  "cw_core:dirt")
-minetest.register_alias("mapgen_water", "cw_core:water_source")
+core.register_alias("mapgen_stone", "cw_core:stone")
+core.register_alias("mapgen_dirt",  "cw_core:dirt")
+core.register_alias("mapgen_water", "cw_core:water_source")

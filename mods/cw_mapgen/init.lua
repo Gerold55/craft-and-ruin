@@ -13,28 +13,6 @@ dofile(mp .. "/leaves_tint.lua")
 dofile(mp .. "/ores.lua")
 dofile(mp .. "/decor_postgen.lua") 
 
-local function move_to_surface(player)
-    local pos = player:get_pos()
-    -- Start high and look for the first non-air block
-    local ground = core.get_spawn_level(pos.x, pos.z)
-    
-    if ground then
-        player:set_pos({x = pos.x, y = ground + 2, z = pos.z})
-    else
-        -- Fallback: if map isn't loaded, force them above sea level
-        player:set_pos({x = pos.x, y = 70, z = pos.z})
-    end
-end
-
-core.register_on_newplayer(function(player)
-    move_to_surface(player)
-end)
-
-core.register_on_respawnplayer(function(player)
-    move_to_surface(player)
-    return true -- Tells the engine we handled the spawn position
-end)
-
 -- 3. THE GENERATORS
 -- We check the mapgen setting to decide which generator to load.
 local mg = minetest.get_mapgen_setting("mg_name") or ""
