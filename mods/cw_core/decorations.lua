@@ -33,142 +33,117 @@ local function humidity_at(pos)
   return (ok and data and data.humidity) or 50
 end
 
--- ====== REEDS ===============================================================
--- Stackable reeds that grow up to 3 tall when adjacent to water
--- Spawn/placed on grass, dirt, or sand.
+local MOD = minetest.get_current_modname()
+local S = minetest.get_translator(MOD)
 
+-- 1. UPDATED BASES: Added the new mapgen sand types
 local BASES = {
-  [MOD..":grass_block"] = true,
-  [MOD..":dirt"]        = true,
-  [MOD..":sand"]        = true,
+    [MOD..":grass_block"]  = true,
+    [MOD..":dirt"]         = true,
+    [MOD..":sand"]         = true,
+    [MOD..":beach_sand"]   = true, -- Compatibility with Mapgen
+    [MOD..":desert_sand"]  = true, -- Compatibility with Mapgen
 }
 
+-- 2. UTILITIES
 local function _is_water(nm)
-  local def = minetest.registered_nodes[nm]
-  return def and def.groups and (def.groups.water or 0) > 0
+    local def = minetest.registered_nodes[nm]
+    return def and def.groups and (def.groups.water or 0) > 0
 end
 
 local function _water_adjacent(pos)
-  local dirs = {
-    {x= 1,y=0,z= 0},{x=-1,y=0,z= 0},
-    {x= 0,y=0,z= 1},{x= 0,y=0,z=-1},
-  }
-  for _,d in ipairs(dirs) do
-    local nn = minetest.get_node({x=pos.x+d.x,y=pos.y+d.y,z=pos.z+d.z}).name
-    if _is_water(nn) then return true end
-  end
-  return false
+    local dirs = {
+        {x= 1,y=0,z= 0},{x=-1,y=0,z= 0},
+        {x= 0,y=0,z= 1},{x= 0,y=0,z=-1},
+    }
+    for _, d in ipairs(dirs) do
+        local nn = minetest.get_node({x=pos.x+d.x, y=pos.y+d.y, z=pos.z+d.z}).name
+        if _is_water(nn) then return true end
+    end
+    return false
 end
 
 local function _can_reeds_survive_at(pos)
-  local below = minetest.get_node({x=pos.x,y=pos.y-1,z=pos.z}).name
-  if not BASES[below] then return false end
-  if not _water_adjacent({x=pos.x,y=pos.y-1,z=pos.z}) then return false end
-  return true
+    -- Check if it's on a valid base node
+    local below = minetest.get_node({x=pos.x, y=pos.y-1, z=pos.z}).name
+    if not BASES[below] then return false end
+    
+    -- Check for water adjacency at the base level
+    if not _water_adjacent({x=pos.x, y=pos.y-1, z=pos.z}) then return false end
+    return true
 end
 
-local function _count_reeds_below(pos)
-  local n = 0
-  local p = {x=pos.x,y=pos.y-1,z=pos.z}
-  while true do
-    local nn = minetest.get_node(p).name
-    if nn ~= MOD..":reeds" then break end
-    n = n + 1
-    p.y = p.y - 1
-  end
-  return n
-end
-
-local function _stack_height_at(pos)
-  local h = 1
-  local p = {x=pos.x,y=pos.y+1,z=pos.z}
-  while minetest.get_node(p).name == MOD..":reeds" do h = h + 1; p.y = p.y + 1 end
-  p = {x=pos.x,y=pos.y-1,z=pos.z}
-  while minetest.get_node(p).name == MOD..":reeds" do h = h + 1; p.y = p.y - 1 end
-  return h
-end
-
-local function _try_grow_one(pos)
-  local above = {x=pos.x,y=pos.y+1,z=pos.z}
-  if minetest.get_node(above).name ~= "air" then return false end
-  local base = {x=pos.x,y=pos.y - _count_reeds_below(pos), z=pos.z}
-  if not _can_reeds_survive_at(base) then return false end
-  minetest.set_node(above, {name = MOD..":reeds"})
-  return true
-end
-
--- expose for other files
-function cw_core.try_grow_reeds_column(base_pos, target_height)
-  target_height = math.max(1, math.min(3, target_height or 2))
-  if not _can_reeds_survive_at(base_pos) then return end
-
-  local nn = minetest.get_node(base_pos).name
-  if nn ~= MOD..":reeds" then
-    minetest.set_node(base_pos, {name = MOD..":reeds"})
-  end
-
-  local top = {x=base_pos.x,y=base_pos.y,z=base_pos.z}
-  while minetest.get_node({x=top.x,y=top.y+1,z=top.z}).name == MOD..":reeds" do
-    top.y = top.y + 1
-  end
-  while _stack_height_at(top) < target_height do
-    if not _try_grow_one(top) then break end
-    top.y = top.y + 1
-  end
-end
-
-minetest.register_node(MOD..":reeds", {
-  description = S("Reeds"),
-  drawtype = "plantlike",
-  waving = 1,
-  tiles = {"cw_reeds.png"},
-  inventory_image = "cw_reeds.png",
-  wield_image = "cw_reeds.png",
-  use_texture_alpha = "clip",
-  paramtype = "light",
-  paramtype2 = "degrotate",
-  place_param2 = 0,
-
-  sunlight_propagates = true,
-  walkable = false,
-  buildable_to = true,
-
-  groups = {snappy=3, flammable=2, attached_node=1, reeds=1},
-  sounds = _node_sound_leaves_fallback(),
-
-  selection_box = { type="fixed", fixed = {-0.21,-0.5,-0.21, 0.21,0.5,0.21} },
-  collision_box = { type="fixed", fixed = {-0.15,-0.5,-0.15, 0.15,0.5,0.15} },
-
-  after_place_node = function(pos, placer)
-    if not _can_reeds_survive_at(pos) then
-      minetest.remove_node(pos)
-      if placer and placer:is_player() then
-        minetest.chat_send_player(placer:get_player_name(), S("Reeds must be next to water and on grass, dirt, or sand."))
-      end
-      return
+local function _get_stack_info(pos)
+    local p = {x=pos.x, y=pos.y, z=pos.z}
+    -- Find the true bottom (the first reed on top of sand/dirt)
+    while minetest.get_node({x=p.x, y=p.y-1, z=p.z}).name == MOD..":reeds" do
+        p.y = p.y - 1
     end
-    local tgt = (math.random() < 0.6) and 2 or 1
-    if math.random() < 0.25 then tgt = 3 end
-    cw_core.try_grow_reeds_column(pos, tgt)
-  end,
+    local bottom = {x=p.x, y=p.y, z=p.z}
+    
+    -- Count total height from bottom
+    local height = 0
+    while minetest.get_node(p).name == MOD..":reeds" do
+        height = height + 1
+        p.y = p.y + 1
+    end
+    return bottom, height
+end
+
+-- 3. NODE DEFINITION
+minetest.register_node(MOD..":reeds", {
+    description = S("Reeds"),
+    drawtype = "plantlike",
+    waving = 1,
+    tiles = {"cw_reeds.png"},
+    inventory_image = "cw_reeds.png",
+    wield_image = "cw_reeds.png",
+    use_texture_alpha = "clip",
+    paramtype = "light",
+    paramtype2 = "degrotate",
+    
+    sunlight_propagates = true,
+    walkable = false,
+    buildable_to = true,
+    groups = {snappy=3, flammable=2, attached_node=1, reeds=1},
+    
+    selection_box = { type="fixed", fixed = {-0.25, -0.5, -0.25, 0.25, 0.5, 0.25} },
+
+    -- Survival Check for manual placement
+    after_place_node = function(pos, placer)
+        local bottom_pos, _ = _get_stack_info(pos)
+        if not _can_reeds_survive_at(bottom_pos) then
+            minetest.remove_node(pos)
+            return true -- Block placement
+        end
+    end,
 })
 
+-- 4. GROWTH ABM
+-- Handles natural growth over time (up to 3 tall)
 minetest.register_abm({
-  label = "Reeds growth",
-  nodenames = {MOD..":reeds"},
-  interval = 17,
-  chance   = 8,
-  action = function(pos)
-    if _stack_height_at(pos) >= 3 then return end
-    local base = {x=pos.x,y=pos.y - _count_reeds_below(pos), z=pos.z}
-    if not _can_reeds_survive_at(base) then
-      minetest.remove_node(pos)
-      return
-    end
-    if math.random() < 0.5 then
-      _try_grow_one(pos)
-    end
-  end
+    label = "Reeds natural growth",
+    nodenames = {MOD..":reeds"},
+    neighbors = {"group:water"}, -- Only run ABM near water for performance
+    interval = 20,
+    chance = 10,
+    action = function(pos)
+        local bottom_pos, height = _get_stack_info(pos)
+        
+        -- Validate survival
+        if not _can_reeds_survive_at(bottom_pos) then
+            minetest.remove_node(pos)
+            return
+        end
+
+        -- Try to grow if under max height
+        if height < 3 then
+            local top_pos = {x=bottom_pos.x, y=bottom_pos.y + height, z=bottom_pos.z}
+            if minetest.get_node(top_pos).name == "air" then
+                minetest.set_node(top_pos, {name = MOD..":reeds"})
+            end
+        end
+    end,
 })
 
 -- ====== DECOR GRASS (palette tinted like Minecraft) ========================

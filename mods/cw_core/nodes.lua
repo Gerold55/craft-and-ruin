@@ -314,6 +314,42 @@ minetest.register_node("cw_core:planks_jungle", {
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
 })
 
+minetest.register_node("cw_core:log_cherry", {
+  description = S("Cherry Log"),
+  tiles = {"cherry_log_top.png","cherry_log_top.png","cherry_log.png"},
+  paramtype2 = "facedir",
+  groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
+  sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+  on_place = minetest.rotate_node
+})
+
+minetest.register_node("cw_core:planks_cherry", {
+  description = S("Cherry Planks"),
+  tiles = {"cherry_planks.png"},
+  paramtype2 = "facedir",
+  groups = {wood=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
+  sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+})
+
+minetest.register_node("cw_core:leaves_cherry", {
+    description = "Cherry Leaves",
+    drawtype = "allfaces_optional",
+    waving = 1,
+    tiles = { "cherry_leaves.png" }, -- Use your final green texture here
+    use_texture_alpha = "clip",
+    paramtype = "light",
+    -- Removed palette and color logic
+    groups = { snappy=3, leafdecay=1, flammable=2, leaves=1 },
+    drop = {
+        max_items = 1,
+        items = {
+            { items = { "cw_core:cherry_sapling" }, rarity = 20 },
+        }
+    },
+    -- Simplified sound check
+    sounds = (default and default.node_sound_leaves_defaults and default.node_sound_leaves_defaults()) or nil,
+})
+
 --========================================================
 -- Leaves (palette-tinted, biome uniform)
 --  - paramtype2="color"
@@ -599,6 +635,34 @@ minetest.register_node("cw_core:birch_sapling", {
   end,
 })
 
+minetest.register_node("cw_core:cherry_sapling", {
+  description = S("Cherry Sapling"),
+  drawtype = "plantlike",
+  tiles = {"cw_cherry_sapling.png"},
+  inventory_image = "cw_cherry_sapling.png",
+  wield_image = "cw_cherry_sapling.png",
+  paramtype = "light",
+  sunlight_propagates = true,
+  walkable = false,
+  buildable_to = true,
+  groups = {snappy=2, dig_immediate=3, flammable=2, attached_node=1, sapling=1},
+  selection_box = {type="fixed", fixed={-0.2,-0.5,-0.2, 0.2,0.35,0.2}},
+  on_construct = function(pos)
+    minetest.get_node_timer(pos):start(math.random(60, 120))
+  end,
+  on_timer = function(pos)
+    local under = minetest.get_node({x=pos.x, y=pos.y-1, z=pos.z}).name
+    if under ~= "cw_core:dirt" and under ~= "cw_core:grass_block" and under ~= "cw_core:sand" then
+      return true -- retry later
+    end
+    if cw_core and cw_core.grow_oak then
+      cw_core.grow_oak(pos, nil)
+      return false
+    end
+    return true
+  end,
+})
+
 --========================================================
 -- Palette GRASS (paramtype2="color") + SNOW variant
 --  - TOP + SIDES tinted (palette)
@@ -814,12 +878,18 @@ minetest.register_abm({
 })
 
 -- --- SAND -------------------------------------------------------------------
-minetest.register_node("cw_core:sand", {
-  description = "Sand",
-  tiles = {"cw_sand.png"},
-  is_ground_content = true,
-  groups = {crumbly = 3, falling_node = 1, sand = 1},
-})
+-- Both look identical, both drop the same item
+local sand_def = {
+    description = "Sand",
+    tiles = {"cw_sand.png"},
+    groups = {crumbly = 3, sand = 1, falling_node = 1},
+    drop = "cw_core:sand",
+    sounds = {footstep = {name = "default_grass_footstep", gain = 0.25}} -- Optional sound
+}
+
+core.register_node("cw_core:beach_sand", sand_def)
+core.register_node("cw_core:desert_sand", sand_def)
+core.register_node("cw_core:sand", sand_def)
 
 minetest.register_node("cw_core:sand_red", {
   description = "Red Sand",

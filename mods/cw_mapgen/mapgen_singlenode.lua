@@ -1,63 +1,42 @@
--- ============================================================================
--- Craft & Ruin — Standalone Mapgen (Explicit Climate Boundaries)
--- ============================================================================
-
 local core = core
+local SEALEVEL = 63
 
--- 1. GLOBAL SETTINGS
+-- Force spawn height well above your SEALEVEL of 63
+core.set_mapgen_setting("static_spawnpoint", "0, 75, 0", true)
+core.set_mapgen_setting("check__shared_breakpoints", "false", true)
+
+-- 1. MAPGEN & BIOME REGISTRATION
 core.set_mapgen_setting("mg_name", "singlenode", true)
 core.set_mapgen_setting("water_level", "63", true)
-core.set_mapgen_setting("mg_flags", "nolight", true)
-
--- 2. THE CLEANER
 core.clear_registered_biomes()
-core.clear_registered_decorations()
 
--- 3. BIOME REGISTRATION (The Hard Walls)
--- We define these strictly so the Decoration Engine knows exactly where is where.
-core.register_biome({
-    name = "beach",
-    y_min = 62, y_max = 64,
-    heat_point = 50, humidity_point = 50,
-})
+-- Biome Labels (Used by the decoration engine for filtering)
+core.register_biome({ name = "beach",        y_min = 62, y_max = 64 })
+core.register_biome({ name = "desert",       y_min = 65, y_max = 31000 })
+core.register_biome({ name = "meadow",       y_min = 65, y_max = 31000 })
+core.register_biome({ name = "cherry_grove", y_min = 65, y_max = 31000 })
 
-core.register_biome({
-    name = "desert",
-    y_min = 65, y_max = 31000,
-    min_heat = 70, -- DESERT ONLY EXISTS IF HEAT > 70
-    heat_point = 90, humidity_point = 10,
-})
+-- 2. CONTENT IDS
+local c_air         = core.CONTENT_AIR
+local c_stone       = core.get_content_id("cw_core:stone")
+local c_dirt        = core.get_content_id("cw_core:dirt")
+local c_grass       = core.get_content_id("cw_core:grass_block")
+local c_beach_sand  = core.get_content_id("cw_core:beach_sand")
+local c_desert_sand = core.get_content_id("cw_core:desert_sand")
+local c_water       = core.get_content_id("cw_core:water_source")
 
-core.register_biome({
-    name = "meadow",
-    y_min = 65, y_max = 31000,
-    max_heat = 69, -- MEADOW ONLY EXISTS IF HEAT < 70
-    heat_point = 50, humidity_point = 40,
-})
-
--- 4. OPTIMIZATION LOCALS
-local SEALEVEL = 63
-local floor, max, min = math.floor, math.max, math.min
-
-local c_air   = core.CONTENT_AIR
-local c_stone = core.get_content_id("cw_core:stone")
-local c_dirt  = core.get_content_id("cw_core:dirt")
-local c_grass = core.get_content_id("cw_core:grass_block")
-local c_sand  = core.get_content_id("cw_core:sand")
-local c_water = core.get_content_id("cw_core:water_source")
-
--- 5. NOISE PARAMS
+-- 3. NOISE PARAMS
+-- 4000 spread makes biomes enormous.
 local np_cont  = { offset = 0, scale = 1, spread = {x=1200, y=1200, z=1200}, seed = 11, octaves = 4, persist = 0.5 }
 local np_hills = { offset = 0, scale = 1, spread = {x=220, y=220, z=220}, seed = 99, octaves = 4, persist = 0.55 }
-local np_heat  = { offset = 0, scale = 1, spread = {x=1200, y=1200, z=1200}, seed = 44, octaves = 3, persist = 0.5 }
-local np_humid = { offset = 0, scale = 1, spread = {x=1200, y=1200, z=1200}, seed = 55, octaves = 3, persist = 0.5 }
+local np_heat  = { offset = 0, scale = 1, spread = {x=4000, y=4000, z=4000}, seed = 44, octaves = 3, persist = 0.5 }
+local np_humid = { offset = 0, scale = 1, spread = {x=4000, y=4000, z=4000}, seed = 55, octaves = 3, persist = 0.5 }
 
--- 6. GENERATOR
 core.register_on_generated(function(minp, maxp)
     local vm, emin, emax = core.get_mapgen_object("voxelmanip")
     local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
     local data = vm:get_data()
-
+    
     local sidelen = maxp.x - minp.x + 1
     local ch_size = {x=sidelen, y=sidelen, z=1}
     local ch_min  = {x=minp.x, y=minp.z}
@@ -71,18 +50,23 @@ core.register_on_generated(function(minp, maxp)
     for z = minp.z, maxp.z do
         for x = minp.x, maxp.x do
             -- Height Calculation
-            local h_raw = SEALEVEL + (cont_map[i] * 20) + (hill_map[i] * 8)
-            local height = floor(max(SEALEVEL - 35, min(h_raw, SEALEVEL + 120)))
-
-            -- Biome/Surface Node Logic
+            local height = math.floor(SEALEVEL + (cont_map[i] * 20) + (hill_map[i] * 8))
             local h, m = heat_map[i], humid_map[i]
+            
+            -- 4. BIOME LOGIC (The "Surface" choice)
             local surf = c_grass
             
-            -- IF/ELSE logic must match the min_heat registration above
             if height <= 64 then
-                surf = c_sand
-            elseif h > 0.4 then -- Matches roughly heat=70 (perlin is -1 to 1)
-                surf = c_sand -- Desert Surface
+                surf = c_beach_sand -- All sea-level sand is BEACH
+            else
+                -- Above sea level, we check Heat and Humidity
+                if h > 0.6 and m < -0.4 then
+                    surf = c_desert_sand -- Hot & Dry = DESERT
+                elseif h > 0.1 and h < 0.5 and m > 0.5 then
+                    -- Moderate Temp & High Humidity = CHERRY GROVE
+                    -- (Note: Using grass here, but labeled as cherry_grove biome)
+                    surf = c_grass 
+                end
             end
 
             for y = minp.y, maxp.y do
@@ -91,7 +75,8 @@ core.register_on_generated(function(minp, maxp)
                     if y == height then
                         data[vi] = surf
                     elseif y > height - 4 then
-                        data[vi] = (surf == c_sand) and c_sand or c_dirt
+                        -- Sub-surface: Sand biomes stay sand, Grass biomes use dirt
+                        data[vi] = (surf == c_grass) and c_dirt or surf
                     else
                         data[vi] = c_stone
                     end

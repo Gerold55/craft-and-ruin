@@ -118,7 +118,7 @@ core.register_decoration({
 core.register_decoration({
     name = "cw_mapgen:dry_flora",
     deco_type = "simple",
-    place_on = {"cw_core:sand"},
+    place_on = {"cw_core:desert_sand"},
     biomes = {"desert"}, -- Engine checks the Heat > 70 wall here
     fill_ratio = 0.02,
     decoration = {"cw_core:cactus", "cw_core:dead_bush"},
@@ -127,22 +127,30 @@ core.register_decoration({
 -- ============================================================================
 -- 🌊 REEDS — Minecraft-accurate
 -- ============================================================================
+-- 1. DEFINE THE SCHEMATICS (1, 2, and 3 tall)
+local reed_1 = { size = {x=1, y=1, z=1}, data = {{name="cw_core:reeds"}} }
+local reed_2 = { size = {x=1, y=2, z=1}, data = {{name="cw_core:reeds"}, {name="cw_core:reeds"}} }
+local reed_3 = { size = {x=1, y=3, z=1}, data = {{name="cw_core:reeds"}, {name="cw_core:reeds"}, {name="cw_core:reeds"}} }
 
-core.register_decoration({
-    name = "cw_mapgen:reeds",
-    deco_type = "simple",
-    place_on = {"cw_core:grass_block", "cw_core:sand"},
-    biomes = {"meadow", "desert"},
-    sidelen = 16,
-    noise_params = {
-        offset = 0.01,
-        scale = 0.06,
-        spread = {x=24, y=24, z=24},
-        seed = 707
-    },
-    decoration = "cw_core:reeds",
-    height = 2,
-    height_max = 4,
-    spawn_by = "cw_core:water_source",
-    num_spawn_by = 1,
-})
+-- 2. HELPER FUNCTION TO REGISTER REEDS
+local function register_reed(name, schematic, ratio)
+    core.register_decoration({
+        name = "cw_mapgen:shore_reeds_" .. name,
+        deco_type = "schematic",
+        place_on = {"cw_core:beach_sand", "cw_core:desert_sand"},
+        sidelen = 16,
+        fill_ratio = ratio, 
+        biomes = {"beach", "desert"},
+        y_min = 64, -- Ensures they sit on dry sand above water level
+        y_max = 66,
+        schematic = schematic,
+        spawn_by = "cw_core:water_source",
+        num_spawn_by = 1,
+        flags = "force_placement",
+    })
+end
+
+-- 3. REGISTER THE MIX (Total density ~0.06)
+register_reed("short",  reed_1, 0.03) -- More small ones
+register_reed("medium", reed_2, 0.02)
+register_reed("tall",   reed_3, 0.01) -- Fewer tall ones
