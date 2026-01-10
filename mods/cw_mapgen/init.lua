@@ -12,6 +12,8 @@ dofile(mp .. "/leaves_tint.lua")
 -- These files should contain core.register_biome and core.register_decoration
 dofile(mp .. "/ores.lua")
 dofile(mp .. "/decor_postgen.lua") 
+dofile(mp .. "/biomes.lua")
+dofile(mp .. "/trees.lua")
 
 -- 3. THE GENERATORS
 -- We check the mapgen setting to decide which generator to load.

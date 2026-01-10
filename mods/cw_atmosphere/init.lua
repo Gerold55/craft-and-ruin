@@ -12,7 +12,7 @@ local atmo = {}
 cw_atmo = atmo
 
 -- ================= Settings / Constants =================
-local S = minetest.settings
+local S = core.settings
 local APPLY_INTERVAL = 0.20
 
 -- Biome "cold" cutoff for snow (Luanti heat scale 0..100)
@@ -137,13 +137,13 @@ local function ensure_player(name)
 end
 
 local function is_night()
-  local tod = minetest.get_timeofday() or 0.5
+  local tod = core.get_timeofday() or 0.5
   return (tod <= 0.2) or (tod >= 0.8)
 end
 
 local function get_moon_phase_index()
-  local day_count = (minetest.get_day_count and minetest.get_day_count()) or
-                    math.floor((minetest.get_gametime() or 0) / 1200)
+  local day_count = (core.get_day_count and core.get_day_count()) or
+                    math.floor((core.get_gametime() or 0) / 1200)
   return (day_count % 8) + 1
 end
 
@@ -196,7 +196,7 @@ local function should_show_moon(tgt)
 end
 
 local function is_cold_biome(pos)
-  local bd = minetest.get_biome_data(pos)
+  local bd = core.get_biome_data(pos)
   if not bd then return false end
   return (bd.heat or 50) <= COLD_HEAT
 end
@@ -246,13 +246,13 @@ local function apply_sky(player, tgt)
     HAS_PLAYER_CLOUDS = true
   elseif not warned_no_player_clouds then
     warned_no_player_clouds = true
-    minetest.log("warning", "[cw_atmosphere] player:set_clouds unsupported; clouds will use engine default.")
+    core.log("warning", "[cw_atmosphere] player:set_clouds unsupported; clouds will use engine default.")
   end
 
   -- Subtle flash during thunder
   if tgt.thunder and math.random() < 0.02 then
     player:override_day_night_ratio(1.0)
-    minetest.after(0.12, function()
+    core.after(0.12, function()
       if player and player:is_player() then
         if tgt.lock_ratio then player:override_day_night_ratio(tgt.lock_ratio)
         else player:override_day_night_ratio(nil) end
@@ -262,7 +262,7 @@ local function apply_sky(player, tgt)
 end
 
 -- ================= Precipitation =================
-local function kill_spawner(id) if id then pcall(minetest.delete_particlespawner, id) end end
+local function kill_spawner(id) if id then pcall(core.delete_particlespawner, id) end end
 
 local function clear_spawner_list(list)
   if not list then return end
@@ -292,7 +292,7 @@ local function spawn_rain(player, tgt, out_ids)
   local glow = heavy and 1 or 0
 
   -- background
-  local id1 = minetest.add_particlespawner({
+  local id1 = core.add_particlespawner({
     amount = amt_bg, time = 0, attached = player,
     minpos = {x=-RAIN.box_half, y=RAIN.start_y,     z=-RAIN.box_half},
     maxpos = {x= RAIN.box_half, y=RAIN.start_y + 2, z= RAIN.box_half},
@@ -306,7 +306,7 @@ local function spawn_rain(player, tgt, out_ids)
     texture = TEX.rain .. tex_mod,
   })
   -- foreground
-  local id2 = minetest.add_particlespawner({
+  local id2 = core.add_particlespawner({
     amount = amt_fg, time = 0, attached = player,
     minpos = {x=-RAIN.box_half, y=RAIN.start_y,     z=-RAIN.box_half},
     maxpos = {x= RAIN.box_half, y=RAIN.start_y + 2, z= RAIN.box_half},
@@ -324,7 +324,7 @@ end
 
 local function spawn_snow(player, tgt, out_ids)
   -- background
-  local id1 = minetest.add_particlespawner({
+  local id1 = core.add_particlespawner({
     amount = SNOW.amount_bg, time = 0, attached = player,
     minpos = {x=-SNOW.box_half, y=SNOW.start_y,     z=-SNOW.box_half},
     maxpos = {x= SNOW.box_half, y=SNOW.start_y + 2, z= SNOW.box_half},
@@ -338,7 +338,7 @@ local function spawn_snow(player, tgt, out_ids)
     texture = TEX.snow .. "^[opacity:" .. tostring(SNOW.opacity),
   })
   -- foreground
-  local id2 = minetest.add_particlespawner({
+  local id2 = core.add_particlespawner({
     amount = SNOW.amount_fg, time = 0, attached = player,
     minpos = {x=-SNOW.box_half, y=SNOW.start_y,     z=-SNOW.box_half},
     maxpos = {x= SNOW.box_half, y=SNOW.start_y + 2, z= SNOW.box_half},
@@ -374,7 +374,7 @@ end
 
 -- ================= Lightning =================
 local function schedule_next_lightning()
-  lightning_next_time = (minetest.get_us_time()/1e6) + rand_between(LIGHTNING_MIN_GAP, LIGHTNING_MAX_GAP)
+  lightning_next_time = (core.get_us_time()/1e6) + rand_between(LIGHTNING_MIN_GAP, LIGHTNING_MAX_GAP)
 end
 schedule_next_lightning()
 
@@ -390,7 +390,7 @@ local function find_lightning_target_near(pos)
     while y > pos.y - 200 do
       local p1 = {x=sx, y=y,   z=sz}
       local p2 = {x=sx, y=y-8, z=sz}
-      local ray = minetest.raycast(p1, p2, false, true)
+      local ray = core.raycast(p1, p2, false, true)
       local iv = ray and ray:next()
       if iv and iv.type == "node" then hit_y = math.floor(iv.above.y); break end
       y = y - 8
@@ -405,7 +405,7 @@ local function do_lightning_strike(hitpos, tgt)
   local top_y, seg = hitpos.y + 40, 6
   local y = top_y
   while y > hitpos.y do
-    minetest.add_particlespawner({
+    core.add_particlespawner({
       amount=1, time=0.05,
       minpos={x=hitpos.x-0.4, y=y, z=hitpos.z-0.4},
       maxpos={x=hitpos.x+0.4, y=y+seg, z=hitpos.z+0.4},
@@ -419,11 +419,11 @@ local function do_lightning_strike(hitpos, tgt)
   end
 
   -- flash near players
-  for _, p in ipairs(minetest.get_connected_players()) do
+  for _, p in ipairs(core.get_connected_players()) do
     local dist = vector.distance(p:get_pos(), hitpos)
     if dist <= 80 then
       p:override_day_night_ratio(1.0)
-      minetest.after(LIGHTNING_FLASH_TIME, function()
+      core.after(LIGHTNING_FLASH_TIME, function()
         if p and p:is_player() then
           if tgt and tgt.lock_ratio then p:override_day_night_ratio(tgt.lock_ratio)
           else p:override_day_night_ratio(nil) end
@@ -438,18 +438,18 @@ local function do_lightning_strike(hitpos, tgt)
     local dist  = vector.distance(p:get_pos(), hitpos)
     local delay = dist / SPEED_OF_SOUND_NPS
     local name  = (dist < 40) and "cw_thunder_close" or "cw_thunder_far"
-    if minetest.sound_play then
-      minetest.after(delay, function()
+    if core.sound_play then
+      core.after(delay, function()
         if p and p:is_player() then
-          minetest.sound_play(name, { to_player=p:get_player_name(), gain=0.9, pitch=1.0 }, true)
+          core.sound_play(name, { to_player=p:get_player_name(), gain=0.9, pitch=1.0 }, true)
         end
       end)
     end
   end
-  for _, p in ipairs(minetest.get_connected_players()) do play_thunder_for(p) end
+  for _, p in ipairs(core.get_connected_players()) do play_thunder_for(p) end
 
   -- damage & optional fire
-  local objs = minetest.get_objects_inside_radius(hitpos, LIGHTNING_DAMAGE_RADIUS)
+  local objs = core.get_objects_inside_radius(hitpos, LIGHTNING_DAMAGE_RADIUS)
   for _, obj in ipairs(objs) do
     if (obj.is_player and obj:is_player()) or obj:get_luaentity() then
       if obj.get_hp and obj.set_hp then
@@ -457,12 +457,12 @@ local function do_lightning_strike(hitpos, tgt)
       end
     end
   end
-  if math.random() < LIGHTNING_FIRE_CHANCE and minetest.get_modpath("fire") then
+  if math.random() < LIGHTNING_FIRE_CHANCE and core.get_modpath("fire") then
     local p = vector.new(hitpos)
-    if minetest.get_node(p).name == "air" then
+    if core.get_node(p).name == "air" then
       local below = {x=p.x, y=p.y-1, z=p.z}
-      local def = minetest.registered_nodes[minetest.get_node(below).name]
-      if def and def.walkable then minetest.set_node(p, {name="fire:basic_flame"}) end
+      local def = core.registered_nodes[core.get_node(below).name]
+      if def and def.walkable then core.set_node(p, {name="fire:basic_flame"}) end
     end
   end
 end
@@ -471,28 +471,28 @@ end
 local SNOW_NODE -- leveled node for layers
 do
   for _, n in ipairs({"cw_core:snow_layer", "default:snow"}) do
-    local d = minetest.registered_nodes[n]
+    local d = core.registered_nodes[n]
     if d and d.paramtype2 == "leveled" then SNOW_NODE = n break end
   end
 end
 local SNOW_BLOCK
 do
   for _, n in ipairs({"cw_core:snow_block", "default:snowblock"}) do
-    if minetest.registered_nodes[n] then SNOW_BLOCK = n break end
+    if core.registered_nodes[n] then SNOW_BLOCK = n break end
   end
 end
 local LAYER_UNIT, LAYERS_TO_BLOCK = 8, 3
 local THRESHOLD_P2 = LAYER_UNIT * LAYERS_TO_BLOCK
 
-local function air(pos) return minetest.get_node(pos).name == "air" end
+local function air(pos) return core.get_node(pos).name == "air" end
 local function top_air_above_solid(p)
   local pos = vector.round(p)
   for y = pos.y + 6, pos.y - 8, -1 do
     local here  = {x=pos.x, y=y,   z=pos.z}
     local below = {x=pos.x, y=y-1, z=pos.z}
-    local nb = minetest.get_node(below).name
-    local defb = minetest.registered_nodes[nb]
-    if minetest.get_node(here).name == "air" and defb and defb.walkable and defb.liquidtype == "none" then
+    local nb = core.get_node(below).name
+    local defb = core.registered_nodes[nb]
+    if core.get_node(here).name == "air" and defb and defb.walkable and defb.liquidtype == "none" then
       return here
     end
   end
@@ -501,20 +501,20 @@ end
 
 local function add_snow_layer_at(pos)
   if not (SNOW_NODE and SNOW_BLOCK) then return end
-  local n = minetest.get_node(pos)
+  local n = core.get_node(pos)
 
   if n.name == SNOW_BLOCK then
     local above = {x=pos.x, y=pos.y+1, z=pos.z}
     if air(above) then
-      minetest.set_node(above, {name=SNOW_NODE, param2=LAYER_UNIT})
+      core.set_node(above, {name=SNOW_NODE, param2=LAYER_UNIT})
     else
-      local an = minetest.get_node(above)
+      local an = core.get_node(above)
       if an.name == SNOW_NODE then
         local p2 = an.param2 or 0
         if p2 < THRESHOLD_P2 - LAYER_UNIT then
-          minetest.swap_node(above, {name=SNOW_NODE, param2=math.min(63, p2 + LAYER_UNIT)})
+          core.swap_node(above, {name=SNOW_NODE, param2=math.min(63, p2 + LAYER_UNIT)})
         else
-          minetest.swap_node(above, {name=SNOW_BLOCK})
+          core.swap_node(above, {name=SNOW_BLOCK})
         end
       end
     end
@@ -522,7 +522,7 @@ local function add_snow_layer_at(pos)
   end
 
   if n.name == "air" then
-    minetest.set_node(pos, {name=SNOW_NODE, param2=LAYER_UNIT})
+    core.set_node(pos, {name=SNOW_NODE, param2=LAYER_UNIT})
     return
   end
 
@@ -530,20 +530,20 @@ local function add_snow_layer_at(pos)
     local p2 = n.param2 or 0
     local new_p2 = math.min(63, p2 + LAYER_UNIT)
     if new_p2 >= THRESHOLD_P2 then
-      minetest.swap_node(pos, {name=SNOW_BLOCK})
+      core.swap_node(pos, {name=SNOW_BLOCK})
       if new_p2 > THRESHOLD_P2 then
         local above = {x=pos.x, y=pos.y+1, z=pos.z}
-        if air(above) then minetest.set_node(above, {name=SNOW_NODE, param2=LAYER_UNIT}) end
+        if air(above) then core.set_node(above, {name=SNOW_NODE, param2=LAYER_UNIT}) end
       end
     else
-      minetest.swap_node(pos, {name=SNOW_NODE, param2=new_p2})
+      core.swap_node(pos, {name=SNOW_NODE, param2=new_p2})
     end
     return
   end
 
-  local def = minetest.registered_nodes[n.name]
+  local def = core.registered_nodes[n.name]
   if def and def.walkable and def.liquidtype == "none" then
-    if air(pos) then minetest.set_node(pos, {name=SNOW_NODE, param2=LAYER_UNIT}) end
+    if air(pos) then core.set_node(pos, {name=SNOW_NODE, param2=LAYER_UNIT}) end
   end
 end
 
@@ -554,7 +554,7 @@ local function maybe_accumulate_snow_for(player, tgt)
   local base = player:get_pos()
   if not is_cold_biome(base) then return end
 
-  local now_ms = math.floor(minetest.get_us_time()/1000)
+  local now_ms = math.floor(core.get_us_time()/1000)
   local name = player:get_player_name()
   if now_ms < (snow_next_time[name] or 0) then return end
   snow_next_time[name] = now_ms + SNOW_TICK_MS
@@ -571,7 +571,7 @@ end
 local function apply_all_players()
   local tgt = compute_target()
   for name, pst in pairs(players) do
-    local p = minetest.get_player_by_name(name)
+    local p = core.get_player_by_name(name)
     if p then
       apply_sky(p, tgt)
       ensure_precip(p, pst, tgt)
@@ -606,12 +606,12 @@ function atmo.clear_weather(_, fade_out)
 end
 
 -- ================= Hooks / Loop =================
-minetest.register_on_joinplayer(function(player)
+core.register_on_joinplayer(function(player)
   local name = player:get_player_name()
   ensure_player(name)
-  local tod = minetest.get_timeofday() or 0.5
+  local tod = core.get_timeofday() or 0.5
   if tod > 0.2 and tod < 0.8 then G.baseline = "clear" else G.baseline = "night_clear" end
-  minetest.after(0.2, function()
+  core.after(0.2, function()
     if not player or not player:is_player() then return end
     local tgt = compute_target()
     apply_sky(player, tgt)
@@ -620,7 +620,7 @@ minetest.register_on_joinplayer(function(player)
   end)
 end)
 
-minetest.register_on_leaveplayer(function(player)
+core.register_on_leaveplayer(function(player)
   if not player then return end
   local name = player:get_player_name()
   local pst = players[name]
@@ -632,7 +632,7 @@ minetest.register_on_leaveplayer(function(player)
 end)
 
 local accum = 0
-minetest.register_globalstep(function(dtime)
+core.register_globalstep(function(dtime)
   accum = accum + dtime
   if accum < APPLY_INTERVAL then return end
   local dt = accum; accum = 0
@@ -655,7 +655,7 @@ minetest.register_globalstep(function(dtime)
   local tgt = compute_target()
 
   for name, pst in pairs(players) do
-    local p = minetest.get_player_by_name(name)
+    local p = core.get_player_by_name(name)
     if p then
       apply_sky(p, tgt)
       ensure_precip(p, pst, tgt)
@@ -664,10 +664,10 @@ minetest.register_globalstep(function(dtime)
   end
 
   -- lightning scheduler
-  local now = minetest.get_us_time()/1e6
+  local now = core.get_us_time()/1e6
   local has_thunder = (G.overlay and G.overlay.def and G.overlay.def.thunder)
   if has_thunder and now >= lightning_next_time then
-    local online = minetest.get_connected_players()
+    local online = core.get_connected_players()
     if #online > 0 then
       local anchor = online[math.random(1, #online)]
       local target = find_lightning_target_near(anchor:get_pos())
@@ -678,7 +678,7 @@ minetest.register_globalstep(function(dtime)
 end)
 
 -- ================= Chat Commands (debug) =================
-minetest.register_chatcommand("atmo_profile", {
+core.register_chatcommand("atmo_profile", {
   params="<clear|overcast|night_clear>",
   description="Set baseline sky profile (global)",
   func=function(name,param)
@@ -687,7 +687,7 @@ minetest.register_chatcommand("atmo_profile", {
   end
 })
 
-minetest.register_chatcommand("atmo_weather", {
+core.register_chatcommand("atmo_weather", {
   params="<drizzle|storm|downpour> [seconds]",
   description="Start global weather",
   func=function(name,param)
@@ -699,7 +699,7 @@ minetest.register_chatcommand("atmo_weather", {
   end
 })
 
-minetest.register_chatcommand("atmo_clear", {
+core.register_chatcommand("atmo_clear", {
   params="[fade_out_sec]",
   description="Clear global weather",
   func=function(name, param)
@@ -707,3 +707,5 @@ minetest.register_chatcommand("atmo_clear", {
     return true, "Weather cleared"
   end
 })
+
+dofile(core.get_modpath("cw_atmosphere") .. "/snow.lua")

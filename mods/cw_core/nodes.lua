@@ -242,6 +242,28 @@ core.register_craftitem("cw_core:nugget_gold", {
 	groups = {gold = 1}
 })
 
+core.register_node("cw_core:ore_emerald", {
+	description = S("Emerald Ore"),
+	tiles = {"emerald_ore.png"},
+	groups = {cracky = 3},
+	drop = "cw_core:emerald",
+	sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+})
+
+core.register_craftitem("cw_core:emerald", {
+	description = S("Emerald"),
+	inventory_image = "emerald.png",
+	groups = {gold = 1}
+})
+
+core.register_node("cw_core:emerald_block", {
+	description = S("Emerald Block"),
+	tiles = {"emerald_block.png"},
+	is_ground_content = false,
+	groups = {cracky = 3},
+	sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+})
+
 -- =========================
 -- Wood & foliage
 -- =========================
@@ -348,6 +370,45 @@ core.register_node("cw_core:leaves_cherry", {
     },
     -- Simplified sound check
     sounds = (default and default.node_sound_leaves_defaults and default.node_sound_leaves_defaults()) or nil,
+})
+
+minetest.register_node("cw_core:pink_petals", {
+	description = "Pink Petals",
+	drawtype = "nodebox",
+	tiles = {"pink_petals.png"}, -- Ensure this image has transparency
+	inventory_image = "pink_petals.png",
+	paramtype = "light",
+	sunlight_propagates = true,
+	use_texture_alpha = "clip",
+	walkable = false,
+	buildable_to = true,
+	groups = {snappy = 3, attached_node = 1},
+	node_box = {
+		type = "fixed",
+		-- This is 0.001 units thick, sitting right on the grass
+		fixed = {-0.5, -0.5, -0.5, 0.5, -0.499, 0.5}, 
+	},
+	selection_box = {
+		type = "fixed",
+		fixed = {-0.5, -0.5, -0.5, 0.5, -0.4, 0.5},
+	},
+})
+
+minetest.register_abm({
+	label = "Cherry Sapling Growth",
+	nodenames = {"cw_core:cherry_sapling"},
+	interval = 60,
+	chance = 20,
+	action = function(pos)
+		local light = minetest.get_node_light(pos)
+		if not light or light < 13 then return end
+
+		local below = minetest.get_node({x=pos.x, y=pos.y-1, z=pos.z}).name
+		if minetest.get_item_group(below, "soil") == 0 then return end
+
+		minetest.remove_node(pos)
+		craft_ruin_generate_cherry_tree(pos)
+	end
 })
 
 --========================================================
@@ -884,12 +945,20 @@ local sand_def = {
     tiles = {"cw_sand.png"},
     groups = {crumbly = 3, sand = 1, falling_node = 1},
     drop = "cw_core:sand",
-    sounds = {footstep = {name = "default_grass_footstep", gain = 0.25}} -- Optional sound
+    sounds = {footstep = {name = "default_grass_footstep", gain = 0.25}}
 }
 
-core.register_node("cw_core:beach_sand", sand_def)
-core.register_node("cw_core:desert_sand", sand_def)
+-- 1. Register the "Master" Sand (This one shows in inventory)
 core.register_node("cw_core:sand", sand_def)
+
+-- 2. Create a modified version for the variants
+-- We use core.copy to avoid changing the original table
+local hidden_sand = table.copy(sand_def)
+hidden_sand.groups.not_in_creative_inventory = 1
+
+-- 3. Register the variants using the hidden definition
+core.register_node("cw_core:beach_sand", hidden_sand)
+core.register_node("cw_core:desert_sand", hidden_sand)
 
 core.register_node("cw_core:sand_red", {
   description = "Red Sand",

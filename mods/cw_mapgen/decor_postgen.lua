@@ -128,9 +128,9 @@ core.register_decoration({
 -- 🌊 REEDS — Minecraft-accurate
 -- ============================================================================
 -- 1. DEFINE THE SCHEMATICS (1, 2, and 3 tall)
-local reed_1 = { size = {x=1, y=1, z=1}, data = {{name="cw_core:reeds"}} }
-local reed_2 = { size = {x=1, y=2, z=1}, data = {{name="cw_core:reeds"}, {name="cw_core:reeds"}} }
-local reed_3 = { size = {x=1, y=3, z=1}, data = {{name="cw_core:reeds"}, {name="cw_core:reeds"}, {name="cw_core:reeds"}} }
+local reed_1 = { size = {x=1, y=1, z=1}, data = {{name="cw_core:reeds_bottom"}} }
+local reed_2 = { size = {x=1, y=2, z=1}, data = {{name="cw_core:reeds_bottom"}, {name="cw_core:reeds_top"}} }
+local reed_3 = { size = {x=1, y=3, z=1}, data = {{name="cw_core:reeds_bottom"}, {name="cw_core:reeds_bottom"}, {name="cw_core:reeds_top"}} }
 
 -- 2. HELPER FUNCTION TO REGISTER REEDS
 local function register_reed(name, schematic, ratio)
