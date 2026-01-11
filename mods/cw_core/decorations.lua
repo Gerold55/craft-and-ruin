@@ -49,24 +49,24 @@ local BASES = {
 -- Reeds (Bottom + Top system)
 -- ============================================================================
 
--- 2. UTILITIES
+-- Nodes reeds are allowed to grow on
+local BASES = {
+    ["cw_core:dirt"] = true,
+    ["cw_core:grass_block"] = true,
+    ["cw_core:sand"] = true,
+    ["cw_core:beach_sand"] = true,
+}
 
+-- 2. UTILITIES
 local function _is_water(nm)
     local def = core.registered_nodes[nm]
     return def and def.groups and (def.groups.water or 0) > 0
 end
 
 local function _water_adjacent(pos)
-    local dirs = {
-        {x= 1,y=0,z= 0},{x=-1,y=0,z= 0},
-        {x= 0,y=0,z= 1},{x= 0,y=0,z=-1},
-    }
+    local dirs = {{x=1,y=0,z=0},{x=-1,y=0,z=0},{x=0,y=0,z=1},{x=0,y=0,z=-1}}
     for _, d in ipairs(dirs) do
-        local nn = core.get_node({
-            x = pos.x + d.x,
-            y = pos.y + d.y,
-            z = pos.z + d.z
-        }).name
+        local nn = core.get_node({x = pos.x + d.x, y = pos.y + d.y, z = pos.z + d.z}).name
         if _is_water(nn) then return true end
     end
     return false
@@ -79,155 +79,84 @@ local function _can_reeds_survive_at(pos)
     return true
 end
 
--- Find bottom and total height (bottom + mids + top)
 local function _get_stack_info(pos)
     local p = vector.new(pos)
-
-    -- Walk down to bottom
     while true do
         local below = core.get_node({x=p.x, y=p.y-1, z=p.z}).name
-        if below == MOD..":reeds_bottom" then
-            p.y = p.y - 1
-        else
-            break
-        end
+        if below == MOD..":reeds_bottom" then p.y = p.y - 1 else break end
     end
-
     local bottom = vector.new(p)
     local height = 1
-
-    -- Count upward: bottom -> tops
     p.y = p.y + 1
     while true do
         local nm = core.get_node(p).name
         if nm == MOD..":reeds_bottom" or nm == MOD..":reeds_top" then
             height = height + 1
             p.y = p.y + 1
-        else
-            break
-        end
+        else break end
     end
-
     return bottom, height
 end
 
--- ============================================================================
--- NODE: REEDS BOTTOM
--- ============================================================================
-
+-- 3. NODE REGISTRATION
 core.register_node(MOD..":reeds_bottom", {
     description = S("Reeds"),
     drawtype = "plantlike",
     waving = 1,
     tiles = {"cw_reeds.png"},
     inventory_image = "cw_reeds.png",
-    wield_image = "cw_reeds.png",
-    use_texture_alpha = "clip",
     paramtype = "light",
     paramtype2 = "degrotate",
-
     sunlight_propagates = true,
     walkable = false,
     buildable_to = true,
-
-    groups = {
-        snappy = 3,
-        flammable = 2,
-        attached_node = 1,
-        reeds = 1
-    },
-
-    selection_box = {
-        type = "fixed",
-        fixed = {-0.25, -0.5, -0.25, 0.25, 0.5, 0.25}
-    },
-
+    groups = {snappy = 3, flammable = 2, attached_node = 1, reeds = 1},
     after_place_node = function(pos)
         if not _can_reeds_survive_at(pos) then
             core.remove_node(pos)
             return true
         end
-
         local above = {x=pos.x, y=pos.y+1, z=pos.z}
         if core.get_node(above).name == "air" then
             core.set_node(above, {name = MOD..":reeds_top"})
         end
     end,
-
     after_destruct = function(pos)
         local above = {x=pos.x, y=pos.y+1, z=pos.z}
-        if core.get_node(above).name == MOD..":reeds_top" then
-            core.remove_node(above)
-        end
+        if core.get_node(above).name == MOD..":reeds_top" then core.remove_node(above) end
     end,
 })
-
--- ============================================================================
--- NODE: REEDS TOP
--- ============================================================================
 
 core.register_node(MOD..":reeds_top", {
     drawtype = "plantlike",
     waving = 1,
     tiles = {"cw_reeds_top.png"},
-    use_texture_alpha = "clip",
     paramtype = "light",
     paramtype2 = "degrotate",
-
     sunlight_propagates = true,
     walkable = false,
     buildable_to = true,
-
-    groups = {
-        snappy = 3,
-        flammable = 2,
-        not_in_creative_inventory = 1,
-        reeds = 1
-    },
-
-    selection_box = {
-        type = "fixed",
-        fixed = {-0.25, -0.5, -0.25, 0.25, 0.5, 0.25}
-    },
-
+    groups = {snappy = 3, flammable = 2, not_in_creative_inventory = 1, reeds = 1},
     after_destruct = function(pos)
         local below = {x=pos.x, y=pos.y-1, z=pos.z}
-        if core.get_node(below).name == MOD..":reeds_bottom" then
-            core.remove_node(below)
-        end
+        if core.get_node(below).name == MOD..":reeds_bottom" then core.remove_node(below) end
     end,
 })
 
--- ============================================================================
--- GROWTH ABM (Bottom-driven, max 3 tall)
--- ============================================================================
-
+-- 4. ABM GROWTH
 core.register_abm({
     label = "Reeds natural growth",
     nodenames = {MOD..":reeds_bottom"},
     neighbors = {"group:water"},
     interval = 20,
     chance = 10,
-
     action = function(pos)
         local bottom, height = _get_stack_info(pos)
-
-        if not _can_reeds_survive_at(bottom) then
-            core.remove_node(bottom)
-            return
-        end
-
-        -- Max height reached (3 total)
+        if not _can_reeds_survive_at(bottom) then core.remove_node(bottom) return end
         if height >= 3 then return end
-
-        -- Find current top
-        local top_pos = vector.new(bottom)
-        top_pos.y = bottom.y + height - 1
-
+        local top_pos = {x=bottom.x, y=bottom.y + height - 1, z=bottom.z}
         local new_top = {x=top_pos.x, y=top_pos.y+1, z=top_pos.z}
-
         if core.get_node(new_top).name == "air" then
-            -- Move top upward
             core.set_node(top_pos, {name = MOD..":reeds_bottom"})
             core.set_node(new_top, {name = MOD..":reeds_top"})
         end
