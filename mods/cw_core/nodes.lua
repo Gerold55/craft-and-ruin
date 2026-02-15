@@ -80,6 +80,19 @@ core.register_node("cw_core:stone", {
   sounds = node_sound_stone(),
 })
 
+core.register_node("cw_core:mountain_grass", {
+  description = S("Stone"),
+  tiles = {
+    "cw_stone.png",
+    "cw_stone.png",
+    "cw_stone.png^cw_grass_side_plains_overlay.png",
+},
+  drop = "cw_core:cobble",
+  is_ground_content = true,
+  groups = {cracky=3, stone=1},
+  sounds = node_sound_stone(),
+})
+
 core.register_node("cw_core:cobble", {
   description = S("Cobblestone"),
   tiles = {"cw_cobblestone.png"},

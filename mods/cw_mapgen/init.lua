@@ -17,15 +17,23 @@ dofile(mp .. "/trees.lua")
 
 -- 3. THE GENERATORS
 -- We check the mapgen setting to decide which generator to load.
+-- ============================================================
+--  CW MAPGEN — INIT (V6 ONLY)
+--  Loads ONLY the v6 mapgen file.
+-- ============================================================
+
+
+local mp = minetest.get_modpath("cw_mapgen")
 local mg = minetest.get_mapgen_setting("mg_name") or ""
 
 if mg == "singlenode" then
-    -- This file contains your core.register_on_generated logic
+    minetest.log("action", "[cw_mapgen] singlenode detected, loading custom mapgen")
     dofile(mp .. "/mapgen_singlenode.lua")
-    -- Load features that depend on the singlenode generation
-    dofile(mp .. "/caves.lua")
-elseif mg == "v6" then
-    dofile(mp .. "/mapgen_v6.lua")
+    dofile(mp .. "/caves.lua")      -- if you still want your cave pass
+    dofile(mp .. "/trees.lua")      
+    dofile(mp .. "/decor_postgen.lua") 
+--    dofile(mp .. "/cave_biome.lua")      -- if you still want your cave pass
 else
-    minetest.log("warning", "[cw_mapgen] Unsupported mg_name: " .. mg .. ". Custom mapgen might not run.")
+    minetest.log("action", "[cw_mapgen] mg_name = " .. mg .. " (cw_mapgen idle)")
 end
+

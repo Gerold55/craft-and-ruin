@@ -1,346 +1,271 @@
-local SEALEVEL = 63
+-- ======================================================
+-- Craft & Ruin - Full Minecraft-like Mapgen
+-- Density + Caves + Biomes + Surface + Trees + Mountain Boost
+-- ======================================================
 
--- ========= Noise definitions =========
+local SEA_LEVEL   = 63
+local MIN_HEIGHT  = -32
+local MAX_HEIGHT  = 192
+local SNOWLINE    = 130
+local SOIL_DEPTH  = 4
+local BEACH_WIDTH = 6
 
-local np_height = {
+-- ======================================================
+-- BIOME NOISE (BT2 smooth transitions)
+-- ======================================================
+
+local np_biome = {
     offset = 0,
     scale = 1,
-    spread = {x = 512, y = 512, z = 512},
-    seed = 1001,
-    octaves = 4,
-    persist = 0.5,
-}
-
-local np_hills = {
-    offset = 0,
-    scale = 1,
-    spread = {x = 256, y = 256, z = 256},
-    seed = 1002,
-    octaves = 3,
-    persist = 0.5,
-}
-
--- Moderate erosion
-local np_erosion = {
-    offset = 0,
-    scale = 1,
-    spread = {x = 300, y = 300, z = 300},
+    spread = {x=1024, y=1024, z=1024},
     seed = 3001,
     octaves = 4,
-    persist = 0.55,
-}
-
--- Wide subtle ridges (axis-aligned)
-local np_ridged = {
-    offset = 0,
-    scale = 1,
-    spread = {x = 600, y = 600, z = 600},
-    seed = 4001,
-    octaves = 3,
     persist = 0.5,
+    lacunarity = 2.0,
 }
 
--- Rivers
-local np_rivers = {
-    offset = 0,
-    scale = 1,
-    spread = {x = 300, y = 300, z = 300},
-    seed = 2001,
-    octaves = 3,
-    persist = 0.5,
-}
-
--- Cherry grove mask
-local np_cherry = {
-    offset = 0,
-    scale = 1,
-    spread = {x = 200, y = 200, z = 200},
-    seed = 9001,
-    octaves = 3,
-    persist = 0.55,
-}
-
--- Sediment patches
-local np_patch = {
-    offset = 0,
-    scale = 1,
-    spread = {x = 64, y = 64, z = 64},
-    seed = 4444,
-    octaves = 3,
-    persist = 0.5,
-}
-
--- ========= Cherry tree generator =========
-
-local function generate_cherry_tree(pos, area, data, ids)
-    local function set(x, y, z, id)
-        if area:contains(x, y, z) then
-            data[area:index(x, y, z)] = id
-        end
-    end
-
-    local trunk_h = math.random(5, 7)
-    for dy = 0, trunk_h do
-        set(pos.x, pos.y + dy, pos.z, ids.log)
-    end
-
-    local top_y = pos.y + trunk_h
-
-    for r = 2, 4 do
-        local y_layer = top_y + (4 - r)
-        for dx = -r, r do
-            for dz = -r, r do
-                if math.abs(dx) + math.abs(dz) <= r + 1 then
-                    if math.random() < 0.9 then
-                        set(pos.x + dx, y_layer, pos.z + dz, ids.leaves)
-                    end
-                end
-            end
-        end
-    end
+-- MB1 rare mountains
+local function get_biome(n)
+    if n < 0.20 then return "plains" end
+    if n < 0.40 then return "forest" end
+    if n < 0.60 then return "birch" end
+    if n < 0.75 then return "cherry" end
+    if n < 0.90 then return "mountain" end
+    return "snowy_peak"
 end
 
-minetest.register_on_generated(function(minp, maxp, seed)
-    local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
-    local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
+-- ======================================================
+-- TERRAIN NOISE
+-- ======================================================
+
+local np_continentalness = {
+    offset = 0, scale = 1,
+    spread = {x=2048,y=2048,z=2048},
+    seed = 1001, octaves = 5,
+    persist = 0.5, lacunarity = 2.0,
+}
+
+local np_erosion = {
+    offset = 0, scale = 1,
+    spread = {x=1024,y=1024,z=1024},
+    seed = 1002, octaves = 5,
+    persist = 0.5, lacunarity = 2.0,
+}
+
+local np_ridges = {
+    offset = 0, scale = 1,
+    spread = {x=1024,y=1024,z=1024},
+    seed = 1003, octaves = 4,
+    persist = 0.5, lacunarity = 2.0,
+}
+
+-- ======================================================
+-- CAVE NOISE
+-- ======================================================
+
+local np_cave_cheese = {
+    offset = 0, scale = 1,
+    spread = {x=256,y=256,z=256},
+    seed = 2001, octaves = 3,
+    persist = 0.5, lacunarity = 2.0,
+}
+
+local np_cave_second = {
+    offset = 0, scale = 1,
+    spread = {x=256,y=256,z=256},
+    seed = 2002, octaves = 3,
+    persist = 0.5, lacunarity = 2.0,
+}
+
+-- ======================================================
+-- DENSITY FUNCTION (V1 LOWER TERRAIN + MOUNTAIN BOOST)
+-- ======================================================
+
+local function compute_density(x,y,z,n_cont,n_eros,n_ridge,n_cheese,n_second,biome)
+
+    -- V1 terrain scale (your choice)
+    local ny = (y - SEA_LEVEL) / 32
+
+    -- Mountain height boost (Option A)
+    local mountain_boost = 0
+    if biome == "mountain" then
+        mountain_boost = 0.35
+    elseif biome == "snowy_peak" then
+        mountain_boost = 0.55
+    end
+
+    local terrain =
+        n_cont * 0.9 +
+        (0.5 - n_eros) * 0.7 +
+        math.max(n_ridge,0)^1.4 * 1.2 -
+        ny * 1.2 +
+        mountain_boost
+
+    local caves = n_cheese - math.abs(n_second)
+
+    return terrain - caves * 0.9
+end
+
+local function idx3d(x,y,z,minp,dim)
+    return ((z-minp.z)*dim.y + (y-minp.y))*dim.x + (x-minp.x+1)
+end
+
+-- ======================================================
+-- MAPGEN
+-- ======================================================
+
+minetest.register_on_generated(function(minp,maxp,seed)
+    local vm,emin,emax = minetest.get_mapgen_object("voxelmanip")
+    local area = VoxelArea:new({MinEdge=emin,MaxEdge=emax})
     local data = vm:get_data()
 
-    local sidelen_x = maxp.x - minp.x + 1
-    local sidelen_z = maxp.z - minp.z + 1
+    local c_air   = minetest.get_content_id("air")
+    local c_stone = minetest.get_content_id("cw_core:stone")
+    local c_water = minetest.get_content_id("cw_core:water_source")
+    local c_grass = minetest.get_content_id("cw_core:grass_block")
+    local c_dirt  = minetest.get_content_id("cw_core:dirt")
+    local c_sand  = minetest.get_content_id("cw_core:sand")
+    local c_snow  = minetest.get_content_id("cw_core:snow")
 
-    -- Fetch noise maps
-    local height_map = minetest.get_perlin_map(np_height, {x = sidelen_x, y = sidelen_z})
-        :get_2d_map_flat({x = minp.x, y = minp.z})
-
-    local hills_map = minetest.get_perlin_map(np_hills, {x = sidelen_x, y = sidelen_z})
-        :get_2d_map_flat({x = minp.x, y = minp.z})
-
-    local erosion_map = minetest.get_perlin_map(np_erosion, {x = sidelen_x, y = sidelen_z})
-        :get_2d_map_flat({x = minp.x, y = minp.z})
-
-    local ridged_map = minetest.get_perlin_map(np_ridged, {x = sidelen_x, y = sidelen_z})
-        :get_2d_map_flat({x = minp.x, y = minp.z})
-
-    local river_map = minetest.get_perlin_map(np_rivers, {x = sidelen_x, y = sidelen_z})
-        :get_2d_map_flat({x = minp.x, y = minp.z})
-
-    local cherry_map = minetest.get_perlin_map(np_cherry, {x = sidelen_x, y = sidelen_z})
-        :get_2d_map_flat({x = minp.x, y = minp.z})
-
-    local patch_map = minetest.get_perlin_map(np_patch, {x = sidelen_x, y = sidelen_z})
-        :get_2d_map_flat({x = minp.x, y = minp.z})
-
-    -- IDs
-    local function id(n) return minetest.get_content_id(n) end
-    local ids = {
-        stone  = id("cw_core:stone"),
-        dirt   = id("cw_core:dirt"),
-        grass  = id("cw_core:grass_block"),
-        sand   = id("cw_core:sand"),
-        gravel = id("cw_core:gravel"),
-        clay   = id("cw_core:clay"),
-        water  = id("cw_core:water_source"),
-        log    = id("cw_core:log_cherry"),
-        leaves = id("cw_core:leaves_cherry"),
-        air    = minetest.CONTENT_AIR,
+    local dim = {
+        x = maxp.x-minp.x+1,
+        y = maxp.y-minp.y+1,
+        z = maxp.z-minp.z+1,
     }
 
-    local heightmap = {}
-    local surface_y = {}
+    -- noise maps
+    local biome_vals  = minetest.get_perlin_map(np_biome,dim):get_3d_map_flat(minp)
+    local cont_vals   = minetest.get_perlin_map(np_continentalness,dim):get_3d_map_flat(minp)
+    local eros_vals   = minetest.get_perlin_map(np_erosion,dim):get_3d_map_flat(minp)
+    local ridge_vals  = minetest.get_perlin_map(np_ridges,dim):get_3d_map_flat(minp)
+    local cheese_vals = minetest.get_perlin_map(np_cave_cheese,dim):get_3d_map_flat(minp)
+    local second_vals = minetest.get_perlin_map(np_cave_second,dim):get_3d_map_flat(minp)
 
--- PASS 1: terrain shaping + solid fill
-    local i2d = 1
+    -- ==================================================
+    -- PASS 1: DENSITY CARVING
+    -- ==================================================
 
-    for z = minp.z, maxp.z do
-        for x = minp.x, maxp.x do
+    local i = 1
+    for z=minp.z,maxp.z do
+    for y=minp.y,maxp.y do
+    for x=minp.x,maxp.x do
 
-            -- Base terrain
-            local base   = height_map[i2d] * 40
-            local hills  = hills_map[i2d] * 15
-            local shaped = base + hills
+        local biome = get_biome(biome_vals[i])
 
-            -- Erosion softened
-            local e = erosion_map[i2d]
-            local slope_factor = 1 + math.abs(e) * 0.25
+        local d = compute_density(
+            x,y,z,
+            cont_vals[i],
+            eros_vals[i],
+            ridge_vals[i],
+            cheese_vals[i],
+            second_vals[i],
+            biome
+        )
 
-            -- Ridges softened
-            local r = math.abs(ridged_map[i2d]) * 7
-            local ridge_blend = 0.75
-            local ridge_term =
-                r * ridge_blend +
-                r * (1 - ridge_blend) * (1 - math.abs(e))
+        local vi = area:index(x,y,z)
 
-            -- Final height
-            local h = shaped * slope_factor + ridge_term
-
-            -- Soft river carving
-            local river = math.abs(river_map[i2d])
-            if river < 0.03 then
-                local depth = (0.03 - river) * 6
-                h = h - depth
-            end
-
-            h = math.floor(64 + h)
-            heightmap[i2d] = h
-
-            -- Compute slope for band‑free stone depth
-            local hL = height_map[i2d - 1] or height_map[i2d]
-            local hR = height_map[i2d + 1] or height_map[i2d]
-            local hU = height_map[i2d - sidelen_x] or height_map[i2d]
-            local hD = height_map[i2d + sidelen_x] or height_map[i2d]
-
-            local slope = math.max(
-                math.abs(hL - hR),
-                math.abs(hU - hD)
-            )
-
-            -- Band‑free stone depth
-            local stone_depth = math.floor(2 + slope * 1.2)
-
-            -- Solid fill
-            for y = minp.y, maxp.y do
-                local vi = area:index(x, y, z)
-                if y <= h then
-                    if y < h - stone_depth then
-                        data[vi] = ids.stone
-                    else
-                        data[vi] = ids.dirt
-                    end
-                else
-                    if y <= SEALEVEL then
-                        data[vi] = ids.water
-                    else
-                        data[vi] = ids.air
-                    end
-                end
-            end
-
-            i2d = i2d + 1
+        if d > 0 then
+            data[vi] = c_stone
+        else
+            data[vi] = (y <= SEA_LEVEL) and c_water or c_air
         end
-    end
 
--- PASS 2: surface materials
-    local function get_h(ix, iz)
-        if ix < 0 or iz < 0 or ix >= sidelen_x or iz >= sidelen_z then return nil end
-        return heightmap[iz * sidelen_x + ix + 1]
-    end
+        i = i + 1
+    end end end
 
-    i2d = 1
-    for z = minp.z, maxp.z do
-        local iz = z - minp.z
-        for x = minp.x, maxp.x do
-            local ix = x - minp.x
-            local h  = heightmap[i2d]
-            local vi = area:index(x, h, z)
+    -- ==================================================
+    -- PASS 2: SURFACE RULES (BIOME-BASED)
+    -- ======================================================
 
-            local river = math.abs(river_map[i2d])
-            local patch = patch_map[i2d]
+    for x=minp.x,maxp.x do
+    for z=minp.z,maxp.z do
 
-            local hL = get_h(ix - 1, iz) or h
-            local hR = get_h(ix + 1, iz) or h
-            local hU = get_h(ix, iz - 1) or h
-            local hD = get_h(ix, iz + 1) or h
-            local slope = math.max(math.abs(hL - hR), math.abs(hU - hD))
+        local surface_y = nil
 
-            local function set_sediment(depth, node)
-                for dy = 0, depth - 1 do
-                    local yy = h - dy
-                    if yy < minp.y then break end
-                    local vi2 = area:index(x, yy, z)
-                    local nid = data[vi2]
-                    if nid == ids.dirt or nid == ids.stone then
-                        data[vi2] = node
+        for y=maxp.y,minp.y,-1 do
+            local id = data[area:index(x,y,z)]
+            if id ~= c_air and id ~= c_water then
+                surface_y = y
+                break
+            end
+        end
+
+        if surface_y then
+            local vi = area:index(x,surface_y,z)
+            local biome = get_biome(biome_vals[idx3d(x,surface_y,z,minp,dim)])
+
+            -- PLAINS OVERRIDE
+            if biome == "plains" then
+                data[vi] = c_grass
+                for d=1,SOIL_DEPTH do
+                    local yi = surface_y-d
+                    if yi < minp.y then break end
+                    local vi2 = area:index(x,yi,z)
+                    if data[vi2] == c_stone then data[vi2] = c_dirt end
+                end
+
+            -- BEACHES
+            elseif surface_y <= SEA_LEVEL + BEACH_WIDTH then
+                data[vi] = c_sand
+                for d=1,SOIL_DEPTH do
+                    local yi = surface_y-d
+                    if yi < minp.y then break end
+                    local vi2 = area:index(x,yi,z)
+                    if data[vi2] == c_stone or data[vi2] == c_dirt then
+                        data[vi2] = c_sand
                     end
                 end
-            end
 
-            -- Rivers
-            if river < 0.03 then
-                if patch > 0.45 then
-                    set_sediment(3, ids.gravel)
-                elseif patch < -0.45 then
-                    set_sediment(3, ids.clay)
+            -- SNOWY PEAKS
+            elseif biome == "snowy_peak" then
+                data[vi] = c_snow
+
+            -- MOUNTAINS (stone only)
+            elseif biome == "mountain" then
+                if surface_y >= SNOWLINE then
+                    data[vi] = c_snow
                 else
-                    set_sediment(3, ids.sand)
+                    data[vi] = c_stone
                 end
 
-            -- Beaches
-            elseif h >= SEALEVEL - 1 and h <= SEALEVEL + 1 and slope < 1.5 then
-                set_sediment(2, ids.sand)
-
-            -- Deep ocean
-            elseif h < SEALEVEL - 8 then
-                if patch > 0.45 then
-                    set_sediment(5, ids.gravel)
-                elseif patch < -0.45 then
-                    set_sediment(5, ids.clay)
-                else
-                    set_sediment(5, ids.sand)
-                end
-
-            -- Land
+            -- FOREST / BIRCH / CHERRY
             else
-                if h > SEALEVEL then
-                    data[vi] = ids.grass
-                end
-            end
-
-            i2d = i2d + 1
-        end
-    end
-
-    -- PASS 3: compute surface_y
-    for z = minp.z, maxp.z do
-        local iz = z - minp.z
-        for x = minp.x, maxp.x do
-            local ix  = x - minp.x
-            local idx = iz * sidelen_x + ix + 1
-
-            local found_y = nil
-            for y = maxp.y, minp.y, -1 do
-                local vi = area:index(x, y, z)
-                local nid = data[vi]
-                if nid ~= ids.air and nid ~= ids.water then
-                    found_y = y
-                    break
-                end
-            end
-
-            surface_y[idx] = found_y
-        end
-    end
-
-    -- PASS 4: cherry trees (only in cherry groves)
-    for z = minp.z + 4, maxp.z - 4 do
-        local iz = z - minp.z
-        for x = minp.x + 4, maxp.x - 4 do
-            local ix  = x - minp.x
-            local idx = iz * sidelen_x + ix + 1
-
-            local sy     = surface_y[idx]
-            local cherry = cherry_map[idx]
-
-            if sy and sy > SEALEVEL + 5 and cherry > 0.45 then
-                local hL = get_h(ix - 1, iz) or sy
-                local hR = get_h(ix + 1, iz) or sy
-                local hU = get_h(ix, iz - 1) or sy
-                local hD = get_h(ix, iz + 1) or sy
-                local slope = math.max(math.abs(hL - hR), math.abs(hU - hD))
-
-                if slope < 10 then
-                    if math.random() < 0.25 then
-                        local base_vi = area:index(x, sy, z)
-                        local base_id = data[base_vi]
-                        if base_id ~= ids.air and base_id ~= ids.water then
-                            generate_cherry_tree({x = x, y = sy + 1, z = z}, area, data, ids)
-                        end
-                    end
+                data[vi] = c_grass
+                for d=1,SOIL_DEPTH do
+                    local yi = surface_y-d
+                    if yi < minp.y then break end
+                    local vi2 = area:index(x,yi,z)
+                    if data[vi2] == c_stone then data[vi2] = c_dirt end
                 end
             end
         end
-    end
+    end end
 
     vm:set_data(data)
-    vm:calc_lighting()
     vm:write_to_map()
+    vm:update_map()
 end)
+
+-- ======================================================
+-- BIOME REGISTRATION (needed for trees)
+-- ======================================================
+
+local function reg_biome(name)
+    minetest.register_biome({
+        name = name,
+        node_top = "cw_core:grass_block",
+        depth_top = 1,
+        node_filler = "cw_core:dirt",
+        depth_filler = 3,
+        y_min = MIN_HEIGHT,
+        y_max = MAX_HEIGHT,
+    })
+end
+
+reg_biome("plains")
+reg_biome("forest")
+reg_biome("birch")
+reg_biome("cherry")
+reg_biome("mountain")
+reg_biome("snowy_peak")
+
