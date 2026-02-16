@@ -268,4 +268,3 @@ reg_biome("birch")
 reg_biome("cherry")
 reg_biome("mountain")
 reg_biome("snowy_peak")
-
