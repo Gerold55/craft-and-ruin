@@ -1,5 +1,5 @@
 -- ============================================================================
--- Craft & Ruin — V7 Mapgen (Terrain + Biomes + Trees + Decor + Real Shorelines)
+-- Craft & Ruin — V7 Mapgen (Terrain + Biomes + Trees + Decor + True Shorelines)
 -- ============================================================================
 
 local SEALEVEL = tonumber(minetest.get_mapgen_setting("water_level")) or 1
@@ -15,7 +15,7 @@ local c_gravel = minetest.get_content_id("cw_core:gravel")
 local c_clay   = minetest.get_content_id("cw_core:clay")
 
 -- ============================================================================
--- NOISE FOR CHERRY GROVE PATCHES (Minecraft-style)
+-- CHERRY GROVE NOISE (large patches)
 -- ============================================================================
 
 local cherry_noise = {
@@ -41,17 +41,12 @@ local function get_slope(heightmap, index, stride_x)
 end
 
 -- ============================================================================
--- PROPER SHORELINE DETECTION (Minecraft-style)
+-- TRUE SHORELINE DETECTION (Minecraft-style)
 -- ============================================================================
 
-local function is_shoreline(x, y, z, area, data, slope)
-    -- Only consider land near sea level
-    if y > SEALEVEL + 2 then
-        return false
-    end
-
-    -- Rivers and deltas have low slope → NEVER beach
-    if slope < 0.8 then
+local function is_true_shoreline(x, y, z, area, data)
+    -- Only consider blocks at or slightly above sea level
+    if y > SEALEVEL + 1 then
         return false
     end
 
@@ -63,11 +58,15 @@ local function is_shoreline(x, y, z, area, data, slope)
         {x, y, z-1},
     }
 
+    local touching_water = false
+    local deep_water = false
+
     for _, p in ipairs(neighbors) do
         local vi = area:index(p[1], p[2], p[3])
         if data[vi] == c_water then
+            touching_water = true
 
-            -- Check depth: must be real ocean, not a river
+            -- Check depth: must be deep enough to be ocean
             local depth = 0
             for dy = 0, 6 do
                 local vi2 = area:index(p[1], y - dy, p[3])
@@ -77,36 +76,44 @@ local function is_shoreline(x, y, z, area, data, slope)
             end
 
             if depth >= 4 then
-                return true -- real coastline
+                deep_water = true
             end
         end
     end
 
-    return false
+    -- Must touch water AND water must be deep
+    return touching_water and deep_water
 end
 
 -- ============================================================================
--- BIOME SELECTION (Large cherry grove patches)
+-- BIOME SELECTION
 -- ============================================================================
 
 local function get_biome(y, slope, cherry_val)
-    if y > SEALEVEL + 25 and y < SEALEVEL + 55 then
-        if slope < 1.2 then
-            if cherry_val > 0.55 then
-                return "cherry_grove"
-            end
+    -- Cherry grove: mid-high elevation, gentle slopes, noise-based patches
+    if y > SEALEVEL + 32 and y < SEALEVEL + 62 then
+        if slope < 1.2 and cherry_val > 0.55 then
+            return "cherry_grove"
         end
     end
 
+    -- Ocean
     if y < SEALEVEL - 2 then
         return "ocean"
-    elseif y < SEALEVEL + 20 then
-        return "plains"
-    elseif y < SEALEVEL + 40 then
-        return "forest"
-    else
-        return "mountain"
     end
+
+    -- Plains (raised)
+    if y < SEALEVEL + 28 then
+        return "plains"
+    end
+
+    -- Forest (raised)
+    if y < SEALEVEL + 48 then
+        return "forest"
+    end
+
+    -- Mountains
+    return "mountain"
 end
 
 -- ============================================================================
@@ -124,7 +131,7 @@ local decor_list = {
 }
 
 -- ============================================================================
--- DECORATION PLACEMENT (SAFE — NEVER OVERWRITES TREES)
+-- DECORATION PLACEMENT (SAFE)
 -- ============================================================================
 
 local function place_decor(pos, biome)
@@ -263,10 +270,11 @@ minetest.register_on_generated(function(minp, maxp, seed)
                 local vi = area:index(x, height, z)
                 local biome = get_biome(height, slope, cherry_val)
 
+                -- TRUE SHORELINE LOGIC
                 if biome == "ocean" then
                     data[vi] = c_sand
 
-                elseif is_shoreline(x, height, z, area, data, slope) then
+                elseif is_true_shoreline(x, height, z, area, data) then
                     data[vi] = c_sand
 
                 else
