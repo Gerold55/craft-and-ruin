@@ -74,3 +74,66 @@ core.register_chatcommand("rtest", {
     end
   end
 })
+
+function cw_core.grow_tree(pos, tree_type)
+    local trunk
+    local leaves
+
+    if tree_type == "oak" then
+        trunk  = "cw_core:log_oak"
+        leaves = "cw_core:leaves_oak"
+
+    elseif tree_type == "birch" then
+        trunk  = "cw_core:log_birch"
+        leaves = "cw_core:leaves_birch"
+
+    elseif tree_type == "cherry" then
+        trunk  = "cw_core:log_cherry"
+        leaves = "cw_core:leaves_cherry"
+    else
+        return
+    end
+
+    -- trunk height
+    local height = math.random(4, 6)
+
+    -- place trunk
+    for y = 0, height - 1 do
+        minetest.set_node({x=pos.x, y=pos.y + y, z=pos.z}, {name = trunk})
+    end
+
+    -- rounded canopy
+    local top = pos.y + height - 1
+
+    local function place_leaf(x, y, z)
+        local p = {x=x, y=y, z=z}
+        if minetest.get_node(p).name == "air" then
+            minetest.set_node(p, {name = leaves})
+        end
+    end
+
+    -- Layer 1 (wide)
+    for dx = -3, 3 do
+        for dz = -3, 3 do
+            if dx*dx + dz*dz <= 9 then
+                place_leaf(pos.x + dx, top, pos.z + dz)
+            end
+        end
+    end
+
+    -- Layer 2 (medium)
+    for dx = -2, 2 do
+        for dz = -2, 2 do
+            if dx*dx + dz*dz <= 4 then
+                place_leaf(pos.x + dx, top + 1, pos.z + dz)
+            end
+        end
+    end
+
+    -- Layer 3 (small)
+    for dx = -1, 1 do
+        for dz = -1, 1 do
+            place_leaf(pos.x + dx, top + 2, pos.z + dz)
+        end
+    end
+end
