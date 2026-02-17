@@ -1,5 +1,5 @@
 -- ============================================================================
--- Craft & Ruin — V7 Mapgen (Engine Terrain + Custom Biomes + Decor + Blobs)
+-- Craft & Ruin — V7 Mapgen (Terrain + Biomes + Trees + Decor + Real Shorelines)
 -- ============================================================================
 
 local SEALEVEL = tonumber(minetest.get_mapgen_setting("water_level")) or 1
@@ -15,6 +15,21 @@ local c_gravel = minetest.get_content_id("cw_core:gravel")
 local c_clay   = minetest.get_content_id("cw_core:clay")
 
 -- ============================================================================
+-- NOISE FOR CHERRY GROVE PATCHES (Minecraft-style)
+-- ============================================================================
+
+local cherry_noise = {
+    offset = 0,
+    scale = 1,
+    spread = {x = 128, y = 128, z = 128},
+    seed = 91321,
+    octaves = 3,
+    persist = 0.5
+}
+
+local nobj_cherry = nil
+
+-- ============================================================================
 -- SLOPE CALCULATION
 -- ============================================================================
 
@@ -26,25 +41,65 @@ local function get_slope(heightmap, index, stride_x)
 end
 
 -- ============================================================================
--- BIOME SELECTION (MC-style cherry grove)
+-- PROPER SHORELINE DETECTION (Minecraft-style)
 -- ============================================================================
 
-local function get_biome(y, slope)
-    -- Cherry grove: rare, mid-high elevation, gentle slopes
-    if y > SEALEVEL + 28 and y < SEALEVEL + 52 then
-        if slope < 1.2 then  -- gentle hills only
-            -- deterministic rarity: only 1 in 24 columns
-            if ((y + slope * 10) % 24) < 1 then
+local function is_shoreline(x, y, z, area, data, slope)
+    -- Only consider land near sea level
+    if y > SEALEVEL + 2 then
+        return false
+    end
+
+    -- Rivers and deltas have low slope → NEVER beach
+    if slope < 0.8 then
+        return false
+    end
+
+    -- Check 4-neighbors for water
+    local neighbors = {
+        {x+1, y, z},
+        {x-1, y, z},
+        {x, y, z+1},
+        {x, y, z-1},
+    }
+
+    for _, p in ipairs(neighbors) do
+        local vi = area:index(p[1], p[2], p[3])
+        if data[vi] == c_water then
+
+            -- Check depth: must be real ocean, not a river
+            local depth = 0
+            for dy = 0, 6 do
+                local vi2 = area:index(p[1], y - dy, p[3])
+                if data[vi2] == c_water then
+                    depth = depth + 1
+                end
+            end
+
+            if depth >= 4 then
+                return true -- real coastline
+            end
+        end
+    end
+
+    return false
+end
+
+-- ============================================================================
+-- BIOME SELECTION (Large cherry grove patches)
+-- ============================================================================
+
+local function get_biome(y, slope, cherry_val)
+    if y > SEALEVEL + 25 and y < SEALEVEL + 55 then
+        if slope < 1.2 then
+            if cherry_val > 0.55 then
                 return "cherry_grove"
             end
         end
     end
 
-    -- fallback biomes
     if y < SEALEVEL - 2 then
         return "ocean"
-    elseif y < SEALEVEL + 2 then
-        return "beach"
     elseif y < SEALEVEL + 20 then
         return "plains"
     elseif y < SEALEVEL + 40 then
@@ -69,10 +124,14 @@ local decor_list = {
 }
 
 -- ============================================================================
--- DECORATION PLACEMENT
+-- DECORATION PLACEMENT (SAFE — NEVER OVERWRITES TREES)
 -- ============================================================================
 
 local function place_decor(pos, biome)
+    if minetest.get_node(pos).name ~= "air" then
+        return
+    end
+
     if biome == "plains" then
         if math.random() < 0.25 then
             minetest.set_node(pos, {name = decor_list.grass[math.random(#decor_list.grass)]})
@@ -109,21 +168,18 @@ local function place_decor(pos, biome)
 end
 
 -- ============================================================================
--- TREE PLACEMENT (fixed floating trees + cherry grove only)
+-- TREE PLACEMENT (NO FLOATING TREES)
 -- ============================================================================
 
 local function place_tree(pos, biome)
     local below = {x=pos.x, y=pos.y-1, z=pos.z}
     local bn = minetest.get_node(below).name
 
-    -- Only place trees on grass or dirt
     if bn ~= "cw_core:grass_block" and bn ~= "cw_core:dirt" then
         return
     end
 
-    -- Clear decor so trees don't float
-    local here = minetest.get_node(pos).name
-    if here ~= "air" then
+    if minetest.get_node(pos).name ~= "air" then
         minetest.set_node(pos, {name="air"})
     end
 
@@ -181,14 +237,16 @@ minetest.register_on_generated(function(minp, maxp, seed)
     local stride_x = (x1 - x0 + 1)
     local i = 1
 
+    nobj_cherry = nobj_cherry or minetest.get_perlin(cherry_noise)
+
     for z = z0, z1 do
         for x = x0, x1 do
 
             local height = heightmap[i]
             local slope = get_slope(heightmap, i, stride_x)
+            local cherry_val = nobj_cherry:get_2d({x=x, y=z})
             i = i + 1
 
-            -- Fill terrain
             for y = y0, y1 do
                 local vi = area:index(x, y, z)
 
@@ -201,18 +259,20 @@ minetest.register_on_generated(function(minp, maxp, seed)
                 end
             end
 
-            -- Surface replacement
             if height >= y0 and height <= y1 then
                 local vi = area:index(x, height, z)
-                local biome = get_biome(height, slope)
+                local biome = get_biome(height, slope, cherry_val)
 
-                if biome == "ocean" or biome == "beach" then
+                if biome == "ocean" then
                     data[vi] = c_sand
+
+                elseif is_shoreline(x, height, z, area, data, slope) then
+                    data[vi] = c_sand
+
                 else
                     data[vi] = c_grass
                 end
 
-                -- Dirt under grass
                 for dy = 1, 3 do
                     local yi = height - dy
                     if yi >= y0 then
@@ -222,7 +282,6 @@ minetest.register_on_generated(function(minp, maxp, seed)
                 end
             end
 
-            -- Underwater blobs
             if height < SEALEVEL - 3 then
                 if math.random() < 0.02 then
                     place_underwater_blob(data, area, x, height - 1, z)
@@ -235,16 +294,13 @@ minetest.register_on_generated(function(minp, maxp, seed)
     vm:write_to_map()
     vm:update_map()
 
-    -- ============================================================================
-    -- POSTGEN DECOR + TREES
-    -- ============================================================================
-
     i = 1
     for z = z0, z1 do
         for x = x0, x1 do
             local height = heightmap[i]
             local slope = get_slope(heightmap, i, stride_x)
-            local biome = get_biome(height, slope)
+            local cherry_val = nobj_cherry:get_2d({x=x, y=z})
+            local biome = get_biome(height, slope, cherry_val)
             i = i + 1
 
             if height >= y0 and height <= y1 then
