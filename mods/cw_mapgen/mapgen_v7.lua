@@ -1,22 +1,25 @@
--- ============================================================================
--- Craft & Ruin — mapgen_v7.lua
--- Engine V7 terrain + custom biomes + schematic decorations
--- No custom terrain generation. No procedural trees. No procedural decor.
--- ============================================================================
-
-minetest.log("action", "[cw_mapgen] mapgen_v7.lua loaded")
-
--- We only use this file for optional post-processing.
--- Since all trees and decor are now handled by Minetest's decoration engine,
--- this file stays intentionally minimal.
-
 minetest.register_on_generated(function(minp, maxp, seed)
-    -- Optional: You can add lightweight post-processing here later.
-    -- For example: biome-specific tweaks, rare structures, ruins, etc.
-    -- But for now, we keep it empty to avoid interfering with engine terrain.
+    local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
+    local area = VoxelArea:new{MinEdge=emin, MaxEdge=emax}
+    local data = vm:get_data()
 
-    -- Example placeholder:
-    -- minetest.log("action", "[cw_mapgen] chunk generated: " ..
-    --     minp.x .. "," .. minp.y .. "," .. minp.z)
+    local c_air   = minetest.get_content_id("air")
+    local c_water = minetest.get_content_id("cw_core:water_source")
+
+    for z = minp.z, maxp.z do
+        for y = minp.y, maxp.y do
+            if y <= 1 then
+                for x = minp.x, maxp.x do
+                    local vi = area:index(x, y, z)
+                    if data[vi] == c_air then
+                        data[vi] = c_water
+                    end
+                end
+            end
+        end
+    end
+
+    vm:set_data(data)
+    vm:write_to_map()
 end)
 
