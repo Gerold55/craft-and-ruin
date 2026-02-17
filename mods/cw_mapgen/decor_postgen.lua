@@ -4,7 +4,7 @@
 -- ============================================================================
 
 local MODPATH = minetest.get_modpath("cw_core")
-local SEALEVEL = 63
+local SEALEVEL = 1
 
 -- IMPORTANT:
 -- Do NOT clear ALL decorations from the entire game unless you truly intend to.

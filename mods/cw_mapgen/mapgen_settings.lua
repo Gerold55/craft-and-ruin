@@ -9,12 +9,12 @@ minetest.set_mapgen_setting("mg_name", "v7", true)
 minetest.set_mapgen_setting("mgv7_spflags",
     "mountains,ridges,rivers,nofloatlands,nocaverns", true)
 
--- Sea level
-minetest.set_mapgen_setting("water_level", "63", true)
+-- Classic Minetest sea level
+minetest.set_mapgen_setting("water_level", "1", true)
 
--- Deepen oceans
+-- Deepen oceans slightly
 minetest.set_mapgen_setting_noiseparams("mgv7_np_terrain_alt", {
-    offset = -8,
+    offset = -4,
     scale = 1,
     spread = {x=600, y=600, z=600},
     seed = 82341,
