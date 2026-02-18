@@ -1,214 +1,235 @@
 -- ============================================================================
--- Craft & Ruin — V7 Mapgen (Terrain + Biomes + Trees + Decor + True Shorelines)
+-- Craft & Ruin — V7 Mapgen
+-- Biomes + Terrain + Trees + Decor + 8‑Layer Snow System
+-- ============================================================================
+-- Biomes:
+--  • Plains
+--  • Forest
+--  • Birch Forest (rare)
+--  • Cherry Grove
+--  • Jungle
+--  • Mountains (forested, snow‑capped)
+--  • Ocean / Deep Ocean
+--
+-- Features:
+--  • 8‑layer Minecraft‑style snow
+--  • Smooth snow transitions
+--  • Engine oceans preserved
+--  • Terrain offset + biome spacing
 -- ============================================================================
 
-local SEALEVEL = tonumber(minetest.get_mapgen_setting("water_level")) or 1
+local SEALEVEL = tonumber(minetest.get_mapgen_setting("water_level")) or 63
+local TERRAIN_OFFSET = 8
+local SNOW_LINE = SEALEVEL + 80
 
 -- Content IDs
-local c_air    = minetest.CONTENT_AIR
-local c_water  = minetest.get_content_id("cw_core:water_source")
-local c_stone  = minetest.get_content_id("cw_core:stone")
-local c_dirt   = minetest.get_content_id("cw_core:dirt")
-local c_grass  = minetest.get_content_id("cw_core:grass_block")
-local c_sand   = minetest.get_content_id("cw_core:sand")
-local c_gravel = minetest.get_content_id("cw_core:gravel")
-local c_clay   = minetest.get_content_id("cw_core:clay")
+local c_air        = minetest.CONTENT_AIR
+local c_water      = minetest.get_content_id("cw_core:water_source")
+local c_stone      = minetest.get_content_id("cw_core:stone")
+local c_dirt       = minetest.get_content_id("cw_core:dirt")
+local c_grass      = minetest.get_content_id("cw_core:grass_block")
+local c_sand       = minetest.get_content_id("cw_core:sand")
+local c_gravel     = minetest.get_content_id("cw_core:gravel")
+local c_clay       = minetest.get_content_id("cw_core:clay")
+local c_snow_block = minetest.get_content_id("cw_core:snow_block")
+
+-- Snow layers
+local c_snow_1 = minetest.get_content_id("cw_core:snow_layer_1")
+local c_snow_2 = minetest.get_content_id("cw_core:snow_layer_2")
+local c_snow_4 = minetest.get_content_id("cw_core:snow_layer_4")
 
 -- ============================================================================
--- CHERRY GROVE NOISE (large patches)
+-- NOISE FIELDS
 -- ============================================================================
 
 local cherry_noise = {
-    offset = 0,
-    scale = 1,
-    spread = {x = 128, y = 128, z = 128},
-    seed = 91321,
-    octaves = 3,
-    persist = 0.5
+    offset = 0, scale = 1,
+    spread = {x=128,y=128,z=128},
+    seed = 91321, octaves = 3, persist = 0.5
 }
 
-local nobj_cherry = nil
+local jungle_heat_noise = {
+    offset = 0, scale = 1,
+    spread = {x=256,y=256,z=256},
+    seed = 55123, octaves = 3, persist = 0.5
+}
+
+local jungle_humidity_noise = {
+    offset = 0, scale = 1,
+    spread = {x=256,y=256,z=256},
+    seed = 99231, octaves = 3, persist = 0.5
+}
+
+local biome_noise = {
+    offset = 0, scale = 1,
+    spread = {x=512,y=512,z=512},
+    seed = 12345, octaves = 3, persist = 0.5
+}
+
+local nobj_cherry
+local nobj_jungle_heat
+local nobj_jungle_humidity
+local nobj_biome
 
 -- ============================================================================
 -- SLOPE CALCULATION
 -- ============================================================================
 
-local function get_slope(heightmap, index, stride_x)
-    local h  = heightmap[index]
-    local hx = heightmap[index + 1] or h
-    local hz = heightmap[index + stride_x] or h
+local function get_slope(hmap, index, stride_x)
+    local h  = hmap[index]
+    local hx = hmap[index + 1] or h
+    local hz = hmap[index + stride_x] or h
     return math.abs(h - hx) + math.abs(h - hz)
-end
-
--- ============================================================================
--- TRUE SHORELINE DETECTION (Minecraft-style)
--- ============================================================================
-
-local function is_true_shoreline(x, y, z, area, data)
-    -- Only consider blocks at or slightly above sea level
-    if y > SEALEVEL + 1 then
-        return false
-    end
-
-    -- Check 4-neighbors for water
-    local neighbors = {
-        {x+1, y, z},
-        {x-1, y, z},
-        {x, y, z+1},
-        {x, y, z-1},
-    }
-
-    local touching_water = false
-    local deep_water = false
-
-    for _, p in ipairs(neighbors) do
-        local vi = area:index(p[1], p[2], p[3])
-        if data[vi] == c_water then
-            touching_water = true
-
-            -- Check depth: must be deep enough to be ocean
-            local depth = 0
-            for dy = 0, 6 do
-                local vi2 = area:index(p[1], y - dy, p[3])
-                if data[vi2] == c_water then
-                    depth = depth + 1
-                end
-            end
-
-            if depth >= 4 then
-                deep_water = true
-            end
-        end
-    end
-
-    -- Must touch water AND water must be deep
-    return touching_water and deep_water
 end
 
 -- ============================================================================
 -- BIOME SELECTION
 -- ============================================================================
 
-local function get_biome(y, slope, cherry_val)
-    -- Cherry grove: mid-high elevation, gentle slopes, noise-based patches
-    if y > SEALEVEL + 32 and y < SEALEVEL + 62 then
-        if slope < 1.2 and cherry_val > 0.55 then
-            return "cherry_grove"
+local function get_biome(x, z, y, slope, cherry_val)
+    local b = nobj_biome:get_2d({x=x, y=z})
+    local heat = nobj_jungle_heat:get_2d({x=x, y=z})
+    local humidity = nobj_jungle_humidity:get_2d({x=x, y=z})
+
+    if y < SEALEVEL - 20 then return "deep_ocean" end
+    if y < SEALEVEL - 2 then return "ocean" end
+
+    if b > 0.35 then
+        if y > SEALEVEL + 5 and y < SEALEVEL + 40 then
+            if heat > 0.45 and humidity > 0.45 then
+                return "jungle"
+            end
         end
     end
 
-    -- Ocean
-    if y < SEALEVEL - 2 then
-        return "ocean"
+    if b > -0.1 and b < 0.2 then
+        if y > SEALEVEL + 32 and y < SEALEVEL + 62 then
+            if slope < 1.2 and cherry_val > 0.55 then
+                return "cherry_grove"
+            end
+        end
     end
 
-    -- Plains (raised)
-    if y < SEALEVEL + 28 then
-        return "plains"
+    if b > -0.05 and b < 0.05 then
+        if y > SEALEVEL + 20 and y < SEALEVEL + 45 then
+            if slope < 1.0 then
+                return "birch_forest"
+            end
+        end
     end
 
-    -- Forest (raised)
-    if y < SEALEVEL + 48 then
-        return "forest"
+    if y > SEALEVEL + 55 or slope > 2.5 then
+        if b > -0.4 and b < 0.4 then
+            return "mountains"
+        end
     end
 
-    -- Mountains
-    return "mountain"
+    if b > -0.2 and b < 0.4 then
+        if y < SEALEVEL + 28 then
+            return "plains"
+        end
+    end
+
+    if b > -0.3 and b < 0.3 then
+        if y < SEALEVEL + 48 then
+            return "forest"
+        end
+    end
+
+    return "forest"
 end
 
 -- ============================================================================
--- DECORATION LISTS
+-- DECORATION
 -- ============================================================================
 
-local decor_list = {
-    grass = {
-        "cw_core:grass_decor"
-    },
-    flowers = {
-        "cw_core:flower_bluebell",
-        "cw_core:flower_daisy"
-    }
-}
+local function try_cluster(pos, node_list, chance)
+    if math.random() >= chance then return end
 
--- ============================================================================
--- DECORATION PLACEMENT (SAFE)
--- ============================================================================
+    for i = 1, 16 do
+        local ox = pos.x + math.random(-3,3)
+        local oz = pos.z + math.random(-3,3)
+        local oy = pos.y
+
+        local p = {x=ox,y=oy,z=oz}
+        local pb = {x=ox,y=oy-1,z=oz}
+
+        if minetest.get_node(p).name == "air" then
+            if minetest.get_node(pb).name == "cw_core:grass_block" then
+                minetest.set_node(p, {name=node_list[math.random(#node_list)]})
+            end
+        end
+    end
+end
 
 local function place_decor(pos, biome)
-    if minetest.get_node(pos).name ~= "air" then
-        return
-    end
+    if minetest.get_node(pos).name ~= "air" then return end
+    if minetest.get_node({x=pos.x,y=pos.y-1,z=pos.z}).name ~= "cw_core:grass_block" then return end
+
+    local grass = {"cw_core:grass_decor"}
+    local flowers = {"cw_core:flower_bluebell", "cw_core:flower_daisy"}
 
     if biome == "plains" then
-        if math.random() < 0.25 then
-            minetest.set_node(pos, {name = decor_list.grass[math.random(#decor_list.grass)]})
-        end
-        if math.random() < 0.08 then
-            minetest.set_node(pos, {name = decor_list.flowers[math.random(#decor_list.flowers)]})
-        end
-        return
-    end
+        try_cluster(pos, grass, 0.40)
+        try_cluster(pos, flowers, 0.10)
 
-    if biome == "forest" then
-        if math.random() < 0.20 then
-            minetest.set_node(pos, {name = decor_list.grass[math.random(#decor_list.grass)]})
-        end
-        return
-    end
+    elseif biome == "forest" then
+        try_cluster(pos, grass, 0.15)
 
-    if biome == "cherry_grove" then
-        if math.random() < 0.30 then
-            minetest.set_node(pos, {name = "cw_core:grass_decor"})
-        end
-        if math.random() < 0.10 then
-            minetest.set_node(pos, {name = "cw_core:flower_daisy"})
-        end
-        return
-    end
+    elseif biome == "birch_forest" then
+        try_cluster(pos, grass, 0.20)
+        try_cluster(pos, flowers, 0.08)
 
-    if biome == "mountain" then
-        if math.random() < 0.05 then
-            minetest.set_node(pos, {name = "cw_core:grass_decor"})
-        end
-        return
+    elseif biome == "cherry_grove" then
+        try_cluster(pos, grass, 0.25)
+        try_cluster(pos, flowers, 0.12)
+
+    elseif biome == "jungle" then
+        try_cluster(pos, grass, 0.50)
+        try_cluster(pos, flowers, 0.05)
+
+    elseif biome == "mountains" then
+        try_cluster(pos, grass, 0.08)
     end
 end
 
 -- ============================================================================
--- TREE PLACEMENT (NO FLOATING TREES)
+-- TREE PLACEMENT
 -- ============================================================================
 
 local function place_tree(pos, biome)
-    local below = {x=pos.x, y=pos.y-1, z=pos.z}
-    local bn = minetest.get_node(below).name
+    local below = {x=pos.x,y=pos.y-1,z=pos.z}
+    if minetest.get_node(below).name ~= "cw_core:grass_block" then return end
 
-    if bn ~= "cw_core:grass_block" and bn ~= "cw_core:dirt" then
-        return
-    end
+    if biome == "forest" and math.random() < 0.04 then
+        cw_core.grow_tree(pos, "oak")
 
-    if minetest.get_node(pos).name ~= "air" then
-        minetest.set_node(pos, {name="air"})
-    end
+    elseif biome == "birch_forest" and math.random() < 0.08 then
+        cw_core.grow_tree(pos, "birch")
 
-    if biome == "forest" then
-        if math.random() < 0.04 then
-            cw_core.grow_tree(pos, "oak")
+    elseif biome == "mountains" then
+        if math.random() < 0.03 then
+            if math.random() < 0.6 then
+                cw_core.grow_tree(pos, "birch")
+            else
+                cw_core.grow_tree(pos, "oak")
+            end
         end
 
-    elseif biome == "mountain" then
-        if math.random() < 0.02 then
-            cw_core.grow_tree(pos, "birch")
-        end
+    elseif biome == "cherry_grove" and math.random() < 0.10 then
+        cw_core.grow_tree(pos, "cherry")
 
-    elseif biome == "cherry_grove" then
+    elseif biome == "jungle" then
         if math.random() < 0.10 then
-            cw_core.grow_tree(pos, "cherry")
+            cw_core.grow_tree(pos, "jungle")
+        elseif math.random() < 0.06 then
+            cw_core.grow_tree(pos, "jungle_bush")
         end
     end
 end
 
 -- ============================================================================
--- UNDERWATER GRAVEL/CLAY BLOBS
+-- UNDERWATER BLOBS
 -- ============================================================================
 
 local function place_underwater_blob(data, area, x, y, z)
@@ -216,11 +237,11 @@ local function place_underwater_blob(data, area, x, y, z)
     local size = math.random(4, 8)
 
     for i = 1, size do
-        local dx = x + math.random(-2, 2)
-        local dy = y + math.random(-1, 1)
-        local dz = z + math.random(-2, 2)
+        local dx = x + math.random(-2,2)
+        local dy = y + math.random(-1,1)
+        local dz = z + math.random(-2,2)
 
-        local vi = area:index(dx, dy, dz)
+        local vi = area:index(dx,dy,dz)
         if data[vi] == c_stone then
             data[vi] = mat
         end
@@ -233,66 +254,138 @@ end
 
 minetest.register_on_generated(function(minp, maxp, seed)
     local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
-    local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
+    local area = VoxelArea:new({MinEdge=emin, MaxEdge=emax})
     local data = vm:get_data()
 
-    local heightmap = minetest.get_mapgen_object("heightmap")
+    local raw_heightmap = minetest.get_mapgen_object("heightmap")
+    local adjusted_heightmap = {}
 
-    local x0, y0, z0 = minp.x, minp.y, minp.z
-    local x1, y1, z1 = maxp.x, maxp.y, maxp.z
+    local x0,y0,z0 = minp.x,minp.y,minp.z
+    local x1,y1,z1 = maxp.x,maxp.y,maxp.z
 
     local stride_x = (x1 - x0 + 1)
     local i = 1
 
     nobj_cherry = nobj_cherry or minetest.get_perlin(cherry_noise)
+    nobj_jungle_heat = nobj_jungle_heat or minetest.get_perlin(jungle_heat_noise)
+    nobj_jungle_humidity = nobj_jungle_humidity or minetest.get_perlin(jungle_humidity_noise)
+    nobj_biome = nobj_biome or minetest.get_perlin(biome_noise)
 
-    for z = z0, z1 do
-        for x = x0, x1 do
+    -- Apply vertical offset
+    for z=z0,z1 do
+        for x=x0,x1 do
+            adjusted_heightmap[i] = raw_heightmap[i] + TERRAIN_OFFSET
+            i = i + 1
+        end
+    end
 
-            local height = heightmap[i]
-            local slope = get_slope(heightmap, i, stride_x)
-            local cherry_val = nobj_cherry:get_2d({x=x, y=z})
+    -- Terrain fill
+    i = 1
+    for z=z0,z1 do
+        for x=x0,x1 do
+
+            local height = adjusted_heightmap[i]
+            local slope = get_slope(adjusted_heightmap, i, stride_x)
+            local cherry_val = nobj_cherry:get_2d({x=x,y=z})
+            local biome = get_biome(x,z,height,slope,cherry_val)
             i = i + 1
 
-            for y = y0, y1 do
-                local vi = area:index(x, y, z)
+            for y=y0,y1 do
+                local vi = area:index(x,y,z)
 
                 if y <= height then
                     data[vi] = c_stone
-                elseif y <= SEALEVEL then
-                    data[vi] = c_water
-                else
+                elseif y > height and y > SEALEVEL then
                     data[vi] = c_air
                 end
             end
 
+            -- Surface
             if height >= y0 and height <= y1 then
-                local vi = area:index(x, height, z)
-                local biome = get_biome(height, slope, cherry_val)
+                local vi = area:index(x,height,z)
 
-                -- TRUE SHORELINE LOGIC
-                if biome == "ocean" then
-                    data[vi] = c_sand
+                if biome == "ocean" or biome == "deep_ocean" then
+                    local depth = SEALEVEL - height
 
-                elseif is_true_shoreline(x, height, z, area, data) then
-                    data[vi] = c_sand
+                    if biome == "ocean" then
+                        if depth <= 3 then
+                            data[vi] = c_sand
+                        elseif depth <= 12 then
+                            data[vi] = (math.random() < 0.75) and c_gravel or c_sand
+                        else
+                            data[vi] = (math.random() < 0.20) and c_clay or c_gravel
+                        end
+
+                        for dy=1,3 do
+                            local yi = height - dy
+                            if yi >= y0 then
+                                local vi2 = area:index(x,yi,z)
+                                data[vi2] = (depth <= 3) and c_sand or c_gravel
+                            end
+                        end
+
+                    elseif biome == "deep_ocean" then
+                        data[vi] = (math.random() < 0.35) and c_clay or c_gravel
+
+                        for dy=1,4 do
+                            local yi = height - dy
+                            if yi >= y0 then
+                                local vi2 = area:index(x,yi,z)
+                                data[vi2] = c_gravel
+                            end
+                        end
+
+                        if math.random() < 0.05 then
+                            place_underwater_blob(data,area,x,height-1,z)
+                        end
+                    end
 
                 else
-                    data[vi] = c_grass
-                end
+                    -- LAND SURFACE + SNOW SYSTEM
+                    if biome == "mountains" then
 
-                for dy = 1, 3 do
-                    local yi = height - dy
-                    if yi >= y0 then
-                        local vi2 = area:index(x, yi, z)
-                        data[vi2] = c_dirt
+                        if height >= SNOW_LINE + 20 then
+                            data[vi] = c_snow_block
+
+                        elseif height >= SNOW_LINE + 10 then
+                            data[vi] = c_snow_block
+                            local vi2 = area:index(x,height+1,z)
+                            data[vi2] = c_snow_4
+
+                        elseif height >= SNOW_LINE + 5 then
+                            data[vi] = c_grass
+                            local vi2 = area:index(x,height+1,z)
+                            data[vi2] = c_snow_2
+
+                        elseif height >= SNOW_LINE then
+                            data[vi] = c_grass
+                            local vi2 = area:index(x,height+1,z)
+                            data[vi2] = c_snow_1
+
+                        else
+                            data[vi] = c_grass
+                        end
+
+                        if height < SNOW_LINE + 20 then
+                            for dy=1,3 do
+                                local yi = height - dy
+                                if yi >= y0 then
+                                    local vi2 = area:index(x,yi,z)
+                                    data[vi2] = c_dirt
+                                end
+                            end
+                        end
+
+                    else
+                        data[vi] = c_grass
+                        for dy=1,3 do
+                            local yi = height - dy
+                            if yi >= y0 then
+                                local vi2 = area:index(x,yi,z)
+                                data[vi2] = c_dirt
+                            end
+                        end
                     end
-                end
-            end
-
-            if height < SEALEVEL - 3 then
-                if math.random() < 0.02 then
-                    place_underwater_blob(data, area, x, height - 1, z)
                 end
             end
         end
@@ -302,20 +395,23 @@ minetest.register_on_generated(function(minp, maxp, seed)
     vm:write_to_map()
     vm:update_map()
 
+    -- Trees + Decor
     i = 1
-    for z = z0, z1 do
-        for x = x0, x1 do
-            local height = heightmap[i]
-            local slope = get_slope(heightmap, i, stride_x)
-            local cherry_val = nobj_cherry:get_2d({x=x, y=z})
-            local biome = get_biome(height, slope, cherry_val)
+    for z=z0,z1 do
+        for x=x0,x1 do
+            local height = adjusted_heightmap[i]
+            local slope = get_slope(adjusted_heightmap, i, stride_x)
+            local cherry_val = nobj_cherry:get_2d({x=x,y=z})
+            local biome = get_biome(x,z,height,slope,cherry_val)
             i = i + 1
 
             if height >= y0 and height <= y1 then
-                local pos = {x=x, y=height+1, z=z}
+                local pos = {x=x,y=height+1,z=z}
 
-                place_tree(pos, biome)
-                place_decor(pos, biome)
+                if biome ~= "ocean" and biome ~= "deep_ocean" then
+                    place_tree(pos, biome)
+                    place_decor(pos, biome)
+                end
             end
         end
     end

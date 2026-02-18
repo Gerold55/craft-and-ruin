@@ -101,13 +101,110 @@ core.register_node("cw_core:cobble", {
   sounds = node_sound_stone(),
 })
 
-core.register_node("cw_core:snow", {
+core.register_node("cw_core:snow_block", {
   description = S("Snow"),
   tiles = {"cw_snow.png"},
   is_ground_content = true,
   groups = {crumbly=2, soil=1},
   sounds = node_sound_dirt(),
 })
+
+-- ============================================================================
+-- Snow Layer (thin snow)
+-- ============================================================================
+
+minetest.register_node("cw_core:snow_layer", {
+    description = "Snow Layer",
+    drawtype = "nodebox",
+    tiles = {"cw_core_snow.png"},
+    paramtype = "light",
+    buildable_to = true,
+    walkable = false,
+    floodable = true,
+    groups = {
+        crumbly = 3,
+        falling_node = 1,
+        snowy = 1,
+        dig_immediate = 3,
+        melts = 1,
+    },
+    node_box = {
+        type = "fixed",
+        fixed = {
+            -- 1/16th height layer (0.0625)
+            {-0.5, -0.5, -0.5, 0.5, -0.4375, 0.5},
+        },
+    },
+    selection_box = {
+        type = "fixed",
+        fixed = {
+            {-0.5, -0.5, -0.5, 0.5, -0.4375, 0.5},
+        },
+    },
+})
+
+-- ============================================================================
+-- Minecraft‑style 8‑layer Snow System
+-- ============================================================================
+
+local snow_text = "cw_core_snow.png"
+
+local function layer_box(n)
+    -- n = 1..8 → height = n/8
+    local h = (n / 8) - 0.5
+    return {
+        type = "fixed",
+        fixed = {
+            {-0.5, -0.5, -0.5, 0.5, h, 0.5}
+        }
+    }
+end
+
+for i = 1, 8 do
+    minetest.register_node("cw_core:snow_layer_" .. i, {
+        description = "Snow Layer (" .. i .. "/8)",
+        drawtype = "nodebox",
+        tiles = {snow_text},
+        paramtype = "light",
+        buildable_to = true,
+        walkable = false,
+        floodable = true,
+        groups = {
+            crumbly = 3,
+            falling_node = 1,
+            snowy = 1,
+            dig_immediate = 3,
+            melts = 1,
+            snow_layer = i,
+        },
+        node_box = layer_box(i),
+        selection_box = layer_box(i),
+    })
+end
+
+-- ============================================================================
+-- Snow Layer Stacking Logic (Minecraft behavior)
+-- ============================================================================
+
+minetest.register_on_placenode(function(pos, newnode)
+    local name = newnode.name
+
+    if not name:find("cw_core:snow_layer_") then return end
+
+    local below = {x=pos.x, y=pos.y-1, z=pos.z}
+    local bn = minetest.get_node(below).name
+
+    if bn:find("cw_core:snow_layer_") then
+        local n = tonumber(bn:match("snow_layer_(%d+)"))
+        if n and n < 8 then
+            minetest.set_node(below, {name = "cw_core:snow_layer_" .. (n + 1)})
+            minetest.remove_node(pos)
+        elseif n == 8 then
+            minetest.set_node(below, {name = "cw_core:snow_block"})
+            minetest.remove_node(pos)
+        end
+    end
+end)
 
 core.register_node("cw_core:dirt", {
   description = S("Dirt"),
