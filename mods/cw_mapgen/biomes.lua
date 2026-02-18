@@ -1,25 +1,55 @@
-cw_mapgen = {}
+-- ============================================================================
+-- biomes.lua
+-- Biome selection using climate grid + elevation + slope + continentalness
+-- ============================================================================
 
-cw_mapgen.biomes = {
-    ocean = {
-        y_min = -31000, y_max = 60,
-        top = "cw_core:sand", filler = "cw_core:sand",
-        is_mountain = false
-    },
-    beach = {
-        y_min = 61, y_max = 64,
-        top = "cw_core:sand", filler = "cw_core:sand",
-        is_mountain = false
-    },
-    plains = {
-        y_min = 65, y_max = 78,
-        top = "cw_core:grass_block", filler = "cw_core:dirt",
-        has_petals = false, tree_type = "oak", is_mountain = false
-    },
-    cherry_grove = {
-        y_min = 79, y_max = 31000,
-        top = "cw_core:grass_block", filler = "cw_core:dirt",
-        has_petals = true, petals_rarity = 3, -- 1 in 3 chance
-        tree_type = "cherry", is_mountain = true
-    }
+local biomes = {}
+
+-- Elevation thresholds
+local SEA = 1
+local DEEP_OCEAN = -10
+
+-- Climate grid mapping
+local CLIMATE_GRID = {
+    cold_dry      = "ice_wastes",
+    cold_medium   = "taiga",
+    cold_wet      = "spruce_forest",
+
+    temperate_dry    = "rolling_hills",
+    temperate_medium = "plains",
+    temperate_wet    = "cherry_grove",
+
+    hot_dry      = "desert",
+    hot_medium   = "savanna",
+    hot_wet      = "jungle",
 }
+
+-- Mesa is special: not climate-based
+local function is_mesa(climate, y, slope)
+    return climate.cont > 0.45 and climate.eros < -0.1 and y > 5 and y < 60
+end
+
+-- Main biome selector
+function biomes.get_biome(x, z, y, slope, climate)
+    -- Oceans
+    if y < DEEP_OCEAN then return "deep_ocean" end
+    if y < SEA then return "ocean" end
+
+    -- Mountains
+    if y > 75 then return "mountains" end
+
+    -- Mesa (special terrain biome)
+    if is_mesa(climate, y, slope) then
+        return "mesa"
+    end
+
+    -- Climate grid
+    local zone = climate.climate_zone
+    local biome = CLIMATE_GRID[zone]
+
+    -- Fallback
+    return biome or "plains"
+end
+
+return biomes
+

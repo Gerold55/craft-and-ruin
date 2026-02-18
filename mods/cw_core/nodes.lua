@@ -80,6 +80,15 @@ core.register_node("cw_core:stone", {
   sounds = node_sound_stone(),
 })
 
+core.register_node("cw_core:sandstone", {
+  description = S("sandstone"),
+  tiles = {"cw_sandstone.png"},
+  drop = "cw_core:sandstone",
+  is_ground_content = true,
+  groups = {cracky=3, stone=1},
+  sounds = node_sound_stone(),
+})
+
 core.register_node("cw_core:mountain_grass", {
   description = S("Stone"),
   tiles = {

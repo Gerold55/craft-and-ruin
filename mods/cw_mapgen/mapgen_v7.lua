@@ -1,357 +1,356 @@
 -- ============================================================================
--- Craft & Ruin — v7 Mapgen (MC-Scale Terrain, Sea Level 1)
--- Biome Zones + Decorations Restored (Grass, Flowers, Mushrooms, Dead Bush)
+-- Craft & Ruin — MAPGEN (PART 1 / 3)
+-- Safe noise manager, constants, mesa palette, helpers
 -- ============================================================================
 
-local SEALEVEL = 1
-local SNOW_LINE = 90
-local TERRAIN_OFFSET = 0
-
--- Content IDs
-local c_air        = minetest.CONTENT_AIR
-local c_stone      = minetest.get_content_id("cw_core:stone")
-local c_water      = minetest.get_content_id("cw_core:water_source")
-local c_grass      = minetest.get_content_id("cw_core:grass_block")
-local c_dirt       = minetest.get_content_id("cw_core:dirt")
-local c_snow_block = minetest.get_content_id("cw_core:snow_block")
-
-local c_snow_1 = minetest.get_content_id("cw_core:snow_layer_1")
-local c_snow_2 = minetest.get_content_id("cw_core:snow_layer_2")
-local c_snow_4 = minetest.get_content_id("cw_core:snow_layer_4")
-
--- Decor nodes you confirmed exist
-local c_grass_decor     = minetest.get_content_id("cw_core:grass_decor")
-local c_flower_bluebell = minetest.get_content_id("cw_core:flower_bluebell")
-local c_flower_daisy    = minetest.get_content_id("cw_core:flower_daisy")
-local c_dead_bush       = minetest.get_content_id("cw_core:dead_bush")
-local c_mushroom_red    = minetest.get_content_id("cw_core:mushroom_red")
-local c_mushroom_brown  = minetest.get_content_id("cw_core:mushroom_brown")
+local modname = minetest.get_current_modname()
 
 -- ============================================================================
--- Noise Definitions
+-- CONSTANTS
 -- ============================================================================
 
-local n_biome, n_temp, n_humid, n_cherry, n_clay, n_cave, n_deep, n_zone
+SEA_LEVEL = 1
 
-local biome_noise = {offset=0,scale=1,spread={x=512,y=512,z=512},seed=10001,octaves=3,persist=0.5}
-local temp_noise  = {offset=0,scale=1,spread={x=256,y=256,z=256},seed=10002,octaves=3,persist=0.5}
-local humid_noise = {offset=0,scale=1,spread={x=256,y=256,z=256},seed=10003,octaves=3,persist=0.5}
-local cherry_noise= {offset=0,scale=1,spread={x=128,y=128,z=128},seed=10004,octaves=3,persist=0.5}
-
--- Mesa spire noise
-local clayspire_noise = {offset=0,scale=1,spread={x=96,y=64,z=96},seed=10005,octaves=4,persist=0.55}
-
--- Deep ocean rugged floor noise
-local deep_noise = {offset=0,scale=1,spread={x=128,y=64,z=128},seed=10007,octaves=4,persist=0.5}
-
--- Caves
-local cave_noise = {offset=0,scale=1,spread={x=64,y=32,z=64},seed=10006,octaves=4,persist=0.5}
-
--- ⭐ NEW: Biome Zone Noise (fixes biome mingling)
-local zone_noise = {
-    offset = 0,
-    scale = 1,
-    spread = {x=1024, y=1024, z=1024},
-    seed = 20001,
-    octaves = 4,
-    persist = 0.5,
-}
+local c_air         = minetest.get_content_id("air")
+local c_stone       = minetest.get_content_id("cw_core:stone")
+local c_dirt        = minetest.get_content_id("cw_core:dirt")
+local c_grass       = minetest.get_content_id("cw_core:grass_block")
+local c_sand        = minetest.get_content_id("cw_core:sand")
+local c_water       = minetest.get_content_id("cw_core:water_source")
 
 -- ============================================================================
--- Mesa Terracotta System
+-- MESA TERRACOTTA PALETTE (YOUR EXACT IDS)
 -- ============================================================================
 
 local mesa_palette = {
-    cw_terracotta.white,
-    cw_terracotta.orange,
-    cw_terracotta.yellow,
-    cw_terracotta.brown,
-    cw_terracotta.red,
+    "cw_core:terracotta_white",
+    "cw_core:terracotta_orange",
+    "cw_core:terracotta_yellow",
+    "cw_core:terracotta_brown",
+    "cw_core:terracotta_red",
 }
 
-local function mesa_color_for_y(y)
-    local band_height = 8 + (y % 5)
-    local idx = math.floor(y / band_height) % #mesa_palette
-    return mesa_palette[idx + 1]
-end
-
-local function build_clayspire_column(area, data, x, z, h, y0, y1, spire_noise)
-    local top = h
-
-    -- Tall Bryce-style spires (MC-scale)
-    local spire = spire_noise:get_3d({x=x, y=h, z=z})
-    if spire > 0.55 then
-        top = top + math.floor((spire - 0.55) * 80)
-    end
-
-    -- Erosion mask
-    local erode = spire_noise:get_2d({x=x, y=z})
-    if erode < -0.2 then
-        top = top - math.floor((-erode) * 6)
-    end
-
-    -- Build terracotta stack
-    for yy = top, top - 60, -1 do
-        if yy < y0 then break end
-        if yy > y1 then goto continue end
-
-        local vi = area:index(x, yy, z)
-        local terracotta = mesa_color_for_y(yy)
-        data[vi] = minetest.get_content_id(terracotta)
-
-        ::continue::
-    end
+-- Convert to content IDs for speed
+for i = 1, #mesa_palette do
+    mesa_palette[i] = minetest.get_content_id(mesa_palette[i])
 end
 
 -- ============================================================================
--- Biome Selection (with biome zones)
+-- SAFE NOISE MANAGER (ALL NOISES CENTRALIZED)
 -- ============================================================================
 
-local function get_biome(x, z, y, s, b, t, h, ch, clay, zone)
+local Noise = {}
 
-    -- Zone families
-    -- zone < -0.33 = cold
-    -- zone <  0.33 = temperate
-    -- else         = warm
+local function make_perlin(def)
+    return minetest.get_perlin(def)
+end
 
-    -- Deep ocean
-    if y < -10 then return "deep_ocean" end
+local function init_noise()
+    Noise.terrain = make_perlin({
+        offset = 0, scale = 1,
+        spread = {x=512, y=256, z=512},
+        seed = 10001, octaves = 5, persist = 0.5
+    })
 
-    -- Shallow ocean
-    if y < 1 then return "ocean" end
+    Noise.mountain = make_perlin({
+        offset = 0, scale = 1,
+        spread = {x=768, y=384, z=768},
+        seed = 10002, octaves = 5, persist = 0.55
+    })
 
-    -- COLD FAMILY -------------------------------------------------------------
-    if zone < -0.33 then
-        if y > 80 and t < -0.25 then return "ice_biome" end
-        if y > 70 or s > 2.5 then return "mountains" end
-        if t < -0.1 and h > 0 and y > 35 and y < 65 then return "taiga_forest" end
-        if t < -0.05 and y > 35 and y < 65 and s < 1.5 then return "spruce_forest" end
-        return "forest"
+    Noise.ridge = make_perlin({
+        offset = 0, scale = 1,
+        spread = {x=512, y=256, z=512},
+        seed = 10003, octaves = 4, persist = 0.5
+    })
+
+    Noise.valley = make_perlin({
+        offset = 0, scale = 1,
+        spread = {x=512, y=256, z=512},
+        seed = 10004, octaves = 4, persist = 0.5
+    })
+
+    Noise.beach = make_perlin({
+        offset = 0, scale = 1,
+        spread = {x=256, y=128, z=256},
+        seed = 10005, octaves = 3, persist = 0.5
+    })
+
+    Noise.clay = make_perlin({
+        offset = 0, scale = 1,
+        spread = {x=128, y=64, z=128},
+        seed = 10006, octaves = 3, persist = 0.5
+    })
+
+    Noise.deep = make_perlin({
+        offset = 0, scale = 1,
+        spread = {x=512, y=256, z=512},
+        seed = 10007, octaves = 4, persist = 0.5
+    })
+
+    Noise.cave = make_perlin({
+        offset = 0, scale = 1,
+        spread = {x=64, y=32, z=64},
+        seed = 10008, octaves = 4, persist = 0.5
+    })
+end
+
+-- Initialize once
+init_noise()
+
+local function get_noise(name)
+    if not Noise[name] then
+        init_noise()
     end
-
-    -- TEMPERATE FAMILY --------------------------------------------------------
-    if zone < 0.33 then
-        if y > 45 and y < 75 and s < 1.2 and ch > 0.55 then return "cherry_grove" end
-        if y > 30 and y < 55 and s < 1.0 and math.abs(b) < 0.1 then return "birch_forest" end
-        if s < 1.0 and y > 25 and y < 45 then return "meadows" end
-        if s >= 1.0 and s < 2.5 and y > 30 and y < 60 then return "rolling_hills" end
-        if y < 25 and s < 1.2 then return "plains" end
-        return "forest"
-    end
-
-    -- WARM FAMILY -------------------------------------------------------------
-    if t > 0.35 and h > 0.35 and y > 5 and y < 45 then return "jungle" end
-    if y > 10 and y < 50 and clay > 0.55 then return "clayspire_basin" end
-
-    return "forest"
+    return Noise[name]
 end
 
 -- ============================================================================
--- DECORATION + TREE FUNCTIONS (FINAL, SAFE)
+-- HELPER: GET HEIGHT FROM TERRAIN NOISE
 -- ============================================================================
 
-local function place_tree(pos, biome)
-    -- Placeholder trees until you add real schematics
-    if biome == "forest" then
-        if math.random(1, 25) == 1 then
-            minetest.spawn_tree(pos, {axiom="FFFF", rules_a={}})
-        end
-    elseif biome == "birch_forest" then
-        if math.random(1, 30) == 1 then
-            minetest.spawn_tree(pos, {axiom="FFFF", rules_a={}})
-        end
-    elseif biome == "spruce_forest" or biome == "taiga_forest" then
-        if math.random(1, 35) == 1 then
-            minetest.spawn_tree(pos, {axiom="FFFF", rules_a={}})
-        end
-    elseif biome == "jungle" then
-        if math.random(1, 20) == 1 then
-            minetest.spawn_tree(pos, {axiom="FFFF", rules_a={}})
-        end
-    elseif biome == "cherry_grove" then
-        if math.random(1, 40) == 1 then
-            minetest.spawn_tree(pos, {axiom="FFFF", rules_a={}})
-        end
+local function get_height(x, z)
+    local n_terr  = get_noise("terrain"):get_2d({x=x, y=z})
+    local n_mnt   = get_noise("mountain"):get_2d({x=x, y=z})
+    local n_ridge = get_noise("ridge"):get_2d({x=x, y=z})
+    local n_val   = get_noise("valley"):get_2d({x=x, y=z})
+
+    -- Base terrain
+    local h = n_terr * 20
+
+    -- Mountains
+    if n_mnt > 0.4 then
+        h = h + (n_mnt - 0.4) * 80
     end
+
+    -- Ridges
+    h = h + n_ridge * 10
+
+    -- Valleys
+    h = h - math.abs(n_val) * 8
+
+    return math.floor(h)
 end
 
+-- ============================================================================
+-- MESA TERRACOTTA BANDING
+-- ============================================================================
 
-local function place_decor(pos, biome)
-    -- Plains: grass + occasional flowers
-    if biome == "plains" then
-        if math.random(1, 4) == 1 then
-            minetest.set_node(pos, {name="cw_core:grass_decor"})
-        elseif math.random(1, 20) == 1 then
-            minetest.set_node(pos, {name="cw_core:flower_daisy"})
-        end
+local function get_mesa_color(y)
+    -- Mesa bands repeat every 5 nodes
+    local band = (math.floor(y / 5) % #mesa_palette) + 1
+    return mesa_palette[band]
+end
 
-    -- Meadows: more flowers
-    elseif biome == "meadows" then
-        if math.random(1, 3) == 1 then
-            minetest.set_node(pos, {name="cw_core:grass_decor"})
-        elseif math.random(1, 12) == 1 then
-            minetest.set_node(pos, {name="cw_core:flower_bluebell"})
-        elseif math.random(1, 14) == 1 then
-            minetest.set_node(pos, {name="cw_core:flower_daisy"})
-        end
+local function is_mesa_biome(biome)
+    return biome == "mesa" or biome == "badlands"
+end
 
-    -- Forests: sparse grass + mushrooms
-    elseif biome == "forest" or biome == "birch_forest" then
-        if math.random(1, 6) == 1 then
-            minetest.set_node(pos, {name="cw_core:grass_decor"})
-        elseif math.random(1, 40) == 1 then
-            minetest.set_node(pos, {name="cw_core:mushroom_red"})
-        elseif math.random(1, 40) == 1 then
-            minetest.set_node(pos, {name="cw_core:mushroom_brown"})
-        end
+-- ============================================================================
+-- DEEP OCEAN SHAPING
+-- ============================================================================
 
-    -- Taiga / Spruce: very sparse + mushrooms
-    elseif biome == "spruce_forest" or biome == "taiga_forest" then
-        if math.random(1, 10) == 1 then
-            minetest.set_node(pos, {name="cw_core:grass_decor"})
-        elseif math.random(1, 50) == 1 then
-            minetest.set_node(pos, {name="cw_core:mushroom_brown"})
-        end
+local function get_ocean_depth(x, z)
+    local n_deep = get_noise("deep"):get_2d({x=x, y=z})
+    -- Deep oceans: -20 to -50
+    return -20 - math.floor(n_deep * 30)
+end
 
-    -- Jungle: dense grass_decor
-    elseif biome == "jungle" then
-        if math.random(1, 2) == 1 then
-            minetest.set_node(pos, {name="cw_core:grass_decor"})
-        end
+-- ============================================================================
+-- CLAY POCKETS (RIVERBEDS, LAKES, BEACHES)
+-- ============================================================================
 
-    -- Cherry Grove: soft flowers + grass
-    elseif biome == "cherry_grove" then
-        if math.random(1, 5) == 1 then
-            minetest.set_node(pos, {name="cw_core:grass_decor"})
-        elseif math.random(1, 18) == 1 then
-            minetest.set_node(pos, {name="cw_core:flower_bluebell"})
-        end
+local function is_clay_here(x, y, z)
+    local n = get_noise("clay"):get_3d({x=x, y=y, z=z})
+    return n > 0.55
+end
 
-    -- Mesa: dead bushes
-    elseif biome == "clayspire_basin" then
-        if math.random(1, 25) == 1 then
-            minetest.set_node(pos, {name="cw_core:dead_bush"})
+-- ============================================================================
+-- CAVE CARVER (SAFE VERSION)
+-- ============================================================================
+
+local function carve_caves(area, data, minp, maxp)
+    local n_cave = get_noise("cave")
+
+    for idx in area:iterp(minp, maxp) do
+        local pos = area:position(idx)
+
+        if pos.y < SEA_LEVEL - 1 then
+            local n = n_cave:get_3d(pos)
+            if n > 0.35 then
+                data[idx] = c_air
+            end
         end
     end
 end
 
 -- ============================================================================
--- Main Mapgen
+-- TERRAIN FILL LOOP
+-- ============================================================================
+
+local function generate_terrain(area, data, minp, maxp)
+    local emin, emax = area.MinEdge, area.MaxEdge
+
+    for z = minp.z, maxp.z do
+        for x = minp.x, maxp.x do
+
+            --------------------------------------------------------------------
+            -- HEIGHT
+            --------------------------------------------------------------------
+            local h = get_height(x, z)
+
+            -- Deep ocean override
+            if h < SEA_LEVEL then
+                local deep = get_ocean_depth(x, z)
+                if h < deep then
+                    h = deep
+                end
+            end
+
+            --------------------------------------------------------------------
+            -- CLIMATE (SAFE)
+            --------------------------------------------------------------------
+            local cl = climate.get_climate(x, z)
+            if not cl or not cl.temp then
+                -- fallback climate (never crash)
+                cl = {
+                    temp = 0,
+                    humid = 0,
+                    cont = 0,
+                    eros = 0,
+                    climate_zone = "temperate_medium"
+                }
+            end
+
+            --------------------------------------------------------------------
+            -- BIOME (SAFE)
+            --------------------------------------------------------------------
+            local biome = biomes.get_biome(x, z, h, 0, cl)
+            if not biome then
+                biome = "plains" -- safe fallback
+            end
+
+            --------------------------------------------------------------------
+            -- TERRAIN FILL
+            --------------------------------------------------------------------
+            for y = minp.y, maxp.y do
+                local vi = area:index(x, y, z)
+
+                if y <= h then
+                    ----------------------------------------------------------------
+                    -- BASE STONE
+                    ----------------------------------------------------------------
+                    data[vi] = c_stone
+
+                    ----------------------------------------------------------------
+                    -- MESA TERRACOTTA
+                    ----------------------------------------------------------------
+                    if is_mesa_biome(biome) then
+                        data[vi] = get_mesa_color(y)
+
+                    ----------------------------------------------------------------
+                    -- CLAY POCKETS
+                    ----------------------------------------------------------------
+                    elseif is_clay_here(x, y, z) then
+                        data[vi] = minetest.get_content_id("cw_core:clay")
+                    end
+
+                elseif y <= SEA_LEVEL then
+                    ----------------------------------------------------------------
+                    -- WATER
+                    ----------------------------------------------------------------
+                    data[vi] = c_water
+                end
+            end
+        end
+    end
+end
+
+-- ============================================================================
+-- SURFACE PLACEMENT
+-- ============================================================================
+
+local function place_surface(area, data, x, z, h, biome)
+    local top_vi = area:index(x, h, z)
+    local under_vi = area:index(x, h - 1, z)
+
+    -- Mesa biomes use terracotta bands (already placed in PART 2)
+    if biome == "mesa" or biome == "badlands" then
+        return
+    end
+
+    -- Beaches
+    if biome == "beach" then
+        data[top_vi] = c_sand
+        data[under_vi] = c_sand
+        return
+    end
+
+    -- Snow biomes
+    if biome == "snow" or biome == "tundra" or biome == "taiga" then
+        data[top_vi] = minetest.get_content_id("cw_core:snow")
+        data[under_vi] = c_dirt
+        return
+    end
+
+    -- Default: grass + dirt
+    data[top_vi] = c_grass
+    data[under_vi] = c_dirt
+end
+
+-- ============================================================================
+-- TREE + DECOR HOOKS (STUBS FOR NOW)
+-- ============================================================================
+
+local function place_trees_and_decor(area, data, x, z, h, biome)
+    -- You can expand this later:
+    -- if biome == "forest" then spawn_oak_tree(...)
+    -- if biome == "taiga" then spawn_spruce_tree(...)
+    -- if biome == "jungle" then spawn_jungle_tree(...)
+    -- if biome == "savanna" then spawn_acacia_tree(...)
+end
+
+-- ============================================================================
+-- FINAL ON_GENERATED CALLBACK
 -- ============================================================================
 
 minetest.register_on_generated(function(minp, maxp, seed)
+    local t0 = minetest.get_us_time()
+
     local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
-    local area = VoxelArea:new({MinEdge=emin, MaxEdge=emax})
+    local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
     local data = vm:get_data()
 
-    local raw_hmap = minetest.get_mapgen_object("heightmap")
-    local hmap = {}
+    -- PART 2: terrain fill
+    generate_terrain(area, data, minp, maxp)
 
-    local x0,y0,z0 = minp.x,minp.y,minp.z
-    local x1,y1,z1 = maxp.x,maxp.y,maxp.z
-    local stride = (x1 - x0 + 1)
+    -- PART 2: caves
+    carve_caves(area, data, minp, maxp)
 
-    -- Init noise
-    n_biome   = n_biome   or minetest.get_perlin(biome_noise)
-    n_temp    = n_temp    or minetest.get_perlin(temp_noise)
-    n_humid   = n_humid   or minetest.get_perlin(humid_noise)
-    n_cherry  = n_cherry  or minetest.get_perlin(cherry_noise)
-    n_clay    = n_clay    or minetest.get_perlin(clayspire_noise)
-    n_cave    = n_cave    or minetest.get_perlin(cave_noise)
-    n_deep    = n_deep    or minetest.get_perlin(deep_noise)
-    n_zone    = n_zone    or minetest.get_perlin(zone_noise)
+    -- PART 3: surface + decor
+    for z = minp.z, maxp.z do
+        for x = minp.x, maxp.x do
+            local h = get_height(x, z)
 
-    -- Heightmap fix
-    local i = 1
-    for z=z0,z1 do
-        for x=x0,x1 do
-            local rh = raw_hmap[i]
-            hmap[i] = (rh ~= -31000) and (rh + TERRAIN_OFFSET) or nil
-            i = i + 1
-        end
-    end
-
-    -- Surface pass
-    i = 1
-    for z=z0,z1 do
-        for x=x0,x1 do
-            local h = hmap[i]
-            if h then
-                local hx = hmap[i+1] or h
-                local hz = hmap[i+stride] or h
-                local s = math.abs(h - hx) + math.abs(h - hz)
-
-                local b = n_biome:get_2d({x=x,y=z})
-                local t = n_temp:get_2d({x=x,y=z})
-                local hu= n_humid:get_2d({x=x,y=z})
-                local ch= n_cherry:get_2d({x=x,y=z})
-                local cl= n_clay:get_2d({x=x,y=z})
-                local zone = n_zone:get_2d({x=x,y=z})
-
-                local biome = get_biome(x,z,h,s,b,t,hu,ch,cl,zone)
-
-                if h >= y0 and h <= y1 then
-                    local vi = area:index(x,h,z)
-
-                    if biome == "clayspire_basin" then
-                        build_clayspire_column(area, data, x, z, h, y0, y1, n_clay)
-
-                    elseif biome == "mountains" then
-                        if h >= SNOW_LINE + 20 then
-                            data[vi] = c_snow_block
-                        elseif h >= SNOW_LINE + 10 then
-                            data[vi] = c_snow_block
-                            data[area:index(x,h+1,z)] = c_snow_4
-                        elseif h >= SNOW_LINE + 5 then
-                            data[vi] = c_grass
-                            data[area:index(x,h+1,z)] = c_snow_2
-                        elseif h >= SNOW_LINE then
-                            data[vi] = c_grass
-                            data[area:index(x,h+1,z)] = c_snow_1
-                        else
-                            data[vi] = c_grass
-                        end
-                        for dy=1,3 do
-                            local yi = h - dy
-                            if yi >= y0 then data[area:index(x,yi,z)] = c_dirt end
-                        end
-
-                    elseif biome == "ice_biome" then
-                        data[vi] = c_snow_block
-                        for dy=1,3 do
-                            local yi = h - dy
-                            if yi >= y0 then data[area:index(x,yi,z)] = c_dirt end
-                        end
-
-                    elseif biome == "ocean" or biome == "deep_ocean" then
-                        if biome == "deep_ocean" then
-                            local d = n_deep:get_3d({x=x,y=h,z=z})
-                            if d > 0.4 then
-                                data[vi] = c_stone
-                            end
-                        end
-
-                    else
-                        data[vi] = c_grass
-                        for dy=1,3 do
-                            local yi = h - dy
-                            if yi >= y0 then data[area:index(x,yi,z)] = c_dirt end
-                        end
-                    end
+            -- Deep ocean override
+            if h < SEA_LEVEL then
+                local deep = get_ocean_depth(x, z)
+                if h < deep then
+                    h = deep
                 end
             end
-            i = i + 1
-        end
-    end
 
-    -- Caves
-    if maxp.y < SEALEVEL - 1 then
-        for idx in area:iterp(minp, maxp) do
-            local pos = area:position(idx)
-            if pos.y < SEALEVEL - 1 and data[idx] == c_stone then
-                local n = n_cave:get_3d(pos)
-                if n > 0.35 then data[idx] = c_air end
+            -- Biome from climate
+            local cl = climate.get_climate(x, z)
+            local biome = biomes.get_biome(x, z, h, 0, cl)
+
+            -- Surface placement
+            if h >= minp.y and h <= maxp.y then
+                place_surface(area, data, x, z, h, biome)
             end
+
+            -- Trees + decor
+            place_trees_and_decor(area, data, x, z, h, biome)
         end
     end
 
@@ -359,36 +358,7 @@ minetest.register_on_generated(function(minp, maxp, seed)
     vm:write_to_map()
     vm:update_map()
 
-    -- ============================================================================
-    -- ⭐ DECOR + TREE PASS (RESTORED)
-    -- ============================================================================
-
-    local i2 = 1
-    for z=z0,z1 do
-        for x=x0,x1 do
-            local h = hmap[i2]
-            if h then
-                local hx = hmap[i2+1] or h
-                local hz = hmap[i2+stride] or h
-                local s = math.abs(h - hx) + math.abs(h - hz)
-
-                local b = n_biome:get_2d({x=x,y=z})
-                local t = n_temp:get_2d({x=x,y=z})
-                local hu= n_humid:get_2d({x=x,y=z})
-                local ch= n_cherry:get_2d({x=x,y=z})
-                local cl= n_clay:get_2d({x=x,y=z})
-                local zone = n_zone:get_2d({x=x,y=z})
-
-                local biome = get_biome(x,z,h,s,b,t,hu,ch,cl,zone)
-
-                if biome ~= "ocean" and biome ~= "deep_ocean" then
-                    local pos = {x=x, y=h+1, z=z}
-                    place_tree(pos, biome)
-                    place_decor(pos, biome)
-                end
-            end
-            i2 = i2 + 1
-        end
-    end
+    local t1 = minetest.get_us_time()
+    minetest.log("action", "[cw_mapgen] Chunk generated in " .. (t1 - t0) .. " µs")
 end)
 
