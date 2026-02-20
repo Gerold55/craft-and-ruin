@@ -110,56 +110,58 @@ core.register_node("cw_core:cobble", {
   sounds = node_sound_stone(),
 })
 
-core.register_node("cw_core:snow_block", {
-  description = S("Snow"),
-  tiles = {"cw_snow.png"},
+core.register_node("cw_core:basalt", {
+  description = S("Basalt"),
+  tiles = {"cw_basalt.png"},
+  drop = "cw_core:basalt_cobble",
   is_ground_content = true,
-  groups = {crumbly=2, soil=1},
-  sounds = node_sound_dirt(),
+  groups = {cracky=3, stone=1},
+  sounds = node_sound_stone(),
 })
 
--- ============================================================================
--- Snow Layer (thin snow)
--- ============================================================================
-
-minetest.register_node("cw_core:snow_layer", {
-    description = "Snow Layer",
-    drawtype = "nodebox",
-    tiles = {"cw_core_snow.png"},
-    paramtype = "light",
-    buildable_to = true,
-    walkable = false,
-    floodable = true,
-    groups = {
-        crumbly = 3,
-        falling_node = 1,
-        snowy = 1,
-        dig_immediate = 3,
-        melts = 1,
-    },
-    node_box = {
-        type = "fixed",
-        fixed = {
-            -- 1/16th height layer (0.0625)
-            {-0.5, -0.5, -0.5, 0.5, -0.4375, 0.5},
-        },
-    },
-    selection_box = {
-        type = "fixed",
-        fixed = {
-            {-0.5, -0.5, -0.5, 0.5, -0.4375, 0.5},
-        },
-    },
+core.register_node("cw_core:basalt_cobble", {
+  description = S("Basalt Cobble"),
+  tiles = {"cw_cobblestone.png"},
+  is_ground_content = true,
+  groups = {cracky=3, stone=1},
+  sounds = node_sound_stone(),
 })
 
--- ============================================================================
--- Minecraft‑style 8‑layer Snow System
--- ============================================================================
+core.register_node("cw_core:snow_block", {
+    description = "Snow",
+    tiles = {"cw_snow.png"},
+    is_ground_content = true,
+    groups = {crumbly=2, soil=1},
+    sounds = node_sound_dirt(),
 
-local snow_text = "cw_core_snow.png"
+    on_rightclick = function(pos, node, user)
+        local item = user:get_wielded_item()
+        local name = item:get_name()
+
+        if name ~= "cw_core:snowball" and not name:find("cw_core:snow_layer_") then
+            return
+        end
+
+        local above = {x=pos.x, y=pos.y+1, z=pos.z}
+        if minetest.get_node(above).name == "air" then
+            minetest.set_node(above, {name = "cw_core:snow_layer_1"})
+            item:take_item()
+            user:set_wielded_item(item)
+        end
+    end,
+})
+
+minetest.register_craftitem("cw_core:snowball", {
+    description = "Snowball",
+    inventory_image = "cw_snowball.png",
+    wield_image = "cw_snowball.png",
+    stack_max = 99,
+    groups = {snowball = 1, melts = 1},
+})
+
+local snow_text = "cw_snow.png"
 
 local function layer_box(n)
-    -- n = 1..8 → height = n/8
     local h = (n / 8) - 0.5
     return {
         type = "fixed",
@@ -185,35 +187,32 @@ for i = 1, 8 do
             dig_immediate = 3,
             melts = 1,
             snow_layer = i,
+			not_in_creative_inventory = 1,
         },
         node_box = layer_box(i),
         selection_box = layer_box(i),
+
+        on_rightclick = function(pos, node, user)
+            local item = user:get_wielded_item()
+            local name = item:get_name()
+
+            if name ~= "cw_core:snowball" and not name:find("cw_core:snow_layer_") then
+                return
+            end
+
+            local n = i
+
+            if n < 8 then
+                minetest.set_node(pos, {name = "cw_core:snow_layer_" .. (n + 1)})
+            else
+                minetest.set_node(pos, {name = "cw_core:snow_block"})
+            end
+
+            item:take_item()
+            user:set_wielded_item(item)
+        end,
     })
 end
-
--- ============================================================================
--- Snow Layer Stacking Logic (Minecraft behavior)
--- ============================================================================
-
-minetest.register_on_placenode(function(pos, newnode)
-    local name = newnode.name
-
-    if not name:find("cw_core:snow_layer_") then return end
-
-    local below = {x=pos.x, y=pos.y-1, z=pos.z}
-    local bn = minetest.get_node(below).name
-
-    if bn:find("cw_core:snow_layer_") then
-        local n = tonumber(bn:match("snow_layer_(%d+)"))
-        if n and n < 8 then
-            minetest.set_node(below, {name = "cw_core:snow_layer_" .. (n + 1)})
-            minetest.remove_node(pos)
-        elseif n == 8 then
-            minetest.set_node(below, {name = "cw_core:snow_block"})
-            minetest.remove_node(pos)
-        end
-    end
-end)
 
 core.register_node("cw_core:dirt", {
   description = S("Dirt"),

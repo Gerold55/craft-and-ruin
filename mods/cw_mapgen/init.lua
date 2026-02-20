@@ -1,18 +1,14 @@
 -- ============================================================================
 -- Craft & Ruin - Mapgen Init
--- Loads climate system, biome logic, and main mapgen
+-- Proper load order for v7 mapgen
 -- ============================================================================
 
-local modpath = minetest.get_modpath("cw_mapgen")
+local mp = minetest.get_modpath("cw_mapgen")
 
--- Climate system (temperature, humidity, continentalness, erosion)
-dofile(modpath .. "/climate.lua")
+-- Always load these. Never conditionally.
+dofile(mp .. "/climate.lua")
+dofile(mp .. "/biomes.lua")
+dofile(mp .. "/decor_postgen.lua")
 
--- Biome selection (climate grid + mesa logic)
-dofile(modpath .. "/biomes.lua")
-
--- Main terrain generator (terrain, oceans, mesa, caves, decor, trees)
-dofile(modpath .. "/mapgen_v7.lua")
-
--- Optional: log confirmation
-minetest.log("action", "[cw_mapgen] Climate-driven worldgen loaded successfully.")
+-- Load mapgen last
+dofile(mp .. "/mapgen_v7.lua")

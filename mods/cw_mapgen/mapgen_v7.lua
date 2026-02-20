@@ -1,364 +1,288 @@
 -- ============================================================================
--- Craft & Ruin — MAPGEN (PART 1 / 3)
--- Safe noise manager, constants, mesa palette, helpers
+-- Craft & Ruin – v7 Mapgen (FINAL COMPLETE FILE)
+-- Snow Accumulation + Frozen Water + Mesa + Plains Smoothing + Rivers
 -- ============================================================================
 
-local modname = minetest.get_current_modname()
+local SEA_LEVEL = 0
 
--- ============================================================================
--- CONSTANTS
--- ============================================================================
+-- Content IDs
+local c_dirt       = minetest.get_content_id("cw_core:dirt")
+local c_sand       = minetest.get_content_id("cw_core:sand")
+local c_gravel     = minetest.get_content_id("cw_core:gravel")
+local c_clay       = minetest.get_content_id("cw_core:clay")
+local c_water      = minetest.get_content_id("cw_core:water_source")
+local c_stone      = minetest.get_content_id("cw_core:stone")
+local c_snowblock  = minetest.get_content_id("cw_core:snow_block")
+local c_grass      = minetest.get_content_id("cw_core:grass_block")
+local c_grass_snow = minetest.get_content_id("cw_core:grass_block_snow")
 
-SEA_LEVEL = 1
-
-local c_air         = minetest.get_content_id("air")
-local c_stone       = minetest.get_content_id("cw_core:stone")
-local c_dirt        = minetest.get_content_id("cw_core:dirt")
-local c_grass       = minetest.get_content_id("cw_core:grass_block")
-local c_sand        = minetest.get_content_id("cw_core:sand")
-local c_water       = minetest.get_content_id("cw_core:water_source")
-
--- ============================================================================
--- MESA TERRACOTTA PALETTE (YOUR EXACT IDS)
--- ============================================================================
-
-local mesa_palette = {
-    "cw_core:terracotta_white",
-    "cw_core:terracotta_orange",
-    "cw_core:terracotta_yellow",
-    "cw_core:terracotta_brown",
-    "cw_core:terracotta_red",
+-- Snow layers (F2)
+local snow_layers = {
+    minetest.get_content_id("cw_core:snow_layer_1"),
+    minetest.get_content_id("cw_core:snow_layer_2"),
+    minetest.get_content_id("cw_core:snow_layer_3"),
+    minetest.get_content_id("cw_core:snow_layer_4"),
+    minetest.get_content_id("cw_core:snow_layer_5"),
+    minetest.get_content_id("cw_core:snow_layer_6"),
+    minetest.get_content_id("cw_core:snow_layer_7"),
+    minetest.get_content_id("cw_core:snow_layer_8"),
 }
 
--- Convert to content IDs for speed
-for i = 1, #mesa_palette do
-    mesa_palette[i] = minetest.get_content_id(mesa_palette[i])
+-- Cold biomes
+local cold_biomes = {
+    ice_biome    = true,
+    taiga_forest = true,
+    mountains    = true,
+}
+
+-- Mesa terracotta banding
+local terracotta_layers = {
+    "cw_core:terracotta_red",
+    "cw_core:terracotta_orange",
+    "cw_core:terracotta_yellow",
+    "cw_core:terracotta_orange",
+    "cw_core:terracotta_red",
+    "cw_core:terracotta_white",
+    "cw_core:terracotta_brown",
+}
+
+for i, name in ipairs(terracotta_layers) do
+    terracotta_layers[i] = minetest.get_content_id(name)
 end
 
--- ============================================================================
--- SAFE NOISE MANAGER (ALL NOISES CENTRALIZED)
--- ============================================================================
+-- River noise
+local river_noise = PerlinNoise({
+    offset  = 0,
+    scale   = 1,
+    spread  = {x = 256, y = 256, z = 256},
+    seed    = 9130,
+    octaves = 1,
+    persist = 1,
+})
 
-local Noise = {}
+-- Snow drift noise (D3)
+local snow_noise = PerlinNoise({
+    offset  = 0,
+    scale   = 1,
+    spread  = {x = 128, y = 128, z = 128},
+    seed    = 20245,
+    octaves = 3,
+    persist = 0.5,
+})
 
-local function make_perlin(def)
-    return minetest.get_perlin(def)
-end
-
-local function init_noise()
-    Noise.terrain = make_perlin({
-        offset = 0, scale = 1,
-        spread = {x=512, y=256, z=512},
-        seed = 10001, octaves = 5, persist = 0.5
-    })
-
-    Noise.mountain = make_perlin({
-        offset = 0, scale = 1,
-        spread = {x=768, y=384, z=768},
-        seed = 10002, octaves = 5, persist = 0.55
-    })
-
-    Noise.ridge = make_perlin({
-        offset = 0, scale = 1,
-        spread = {x=512, y=256, z=512},
-        seed = 10003, octaves = 4, persist = 0.5
-    })
-
-    Noise.valley = make_perlin({
-        offset = 0, scale = 1,
-        spread = {x=512, y=256, z=512},
-        seed = 10004, octaves = 4, persist = 0.5
-    })
-
-    Noise.beach = make_perlin({
-        offset = 0, scale = 1,
-        spread = {x=256, y=128, z=256},
-        seed = 10005, octaves = 3, persist = 0.5
-    })
-
-    Noise.clay = make_perlin({
-        offset = 0, scale = 1,
-        spread = {x=128, y=64, z=128},
-        seed = 10006, octaves = 3, persist = 0.5
-    })
-
-    Noise.deep = make_perlin({
-        offset = 0, scale = 1,
-        spread = {x=512, y=256, z=512},
-        seed = 10007, octaves = 4, persist = 0.5
-    })
-
-    Noise.cave = make_perlin({
-        offset = 0, scale = 1,
-        spread = {x=64, y=32, z=64},
-        seed = 10008, octaves = 4, persist = 0.5
-    })
-end
-
--- Initialize once
-init_noise()
-
-local function get_noise(name)
-    if not Noise[name] then
-        init_noise()
-    end
-    return Noise[name]
-end
-
--- ============================================================================
--- HELPER: GET HEIGHT FROM TERRAIN NOISE
--- ============================================================================
-
-local function get_height(x, z)
-    local n_terr  = get_noise("terrain"):get_2d({x=x, y=z})
-    local n_mnt   = get_noise("mountain"):get_2d({x=x, y=z})
-    local n_ridge = get_noise("ridge"):get_2d({x=x, y=z})
-    local n_val   = get_noise("valley"):get_2d({x=x, y=z})
-
-    -- Base terrain
-    local h = n_terr * 20
-
-    -- Mountains
-    if n_mnt > 0.4 then
-        h = h + (n_mnt - 0.4) * 80
-    end
-
-    -- Ridges
-    h = h + n_ridge * 10
-
-    -- Valleys
-    h = h - math.abs(n_val) * 8
-
-    return math.floor(h)
-end
-
--- ============================================================================
--- MESA TERRACOTTA BANDING
--- ============================================================================
-
-local function get_mesa_color(y)
-    -- Mesa bands repeat every 5 nodes
-    local band = (math.floor(y / 5) % #mesa_palette) + 1
-    return mesa_palette[band]
-end
-
-local function is_mesa_biome(biome)
-    return biome == "mesa" or biome == "badlands"
-end
-
--- ============================================================================
--- DEEP OCEAN SHAPING
--- ============================================================================
-
-local function get_ocean_depth(x, z)
-    local n_deep = get_noise("deep"):get_2d({x=x, y=z})
-    -- Deep oceans: -20 to -50
-    return -20 - math.floor(n_deep * 30)
-end
-
--- ============================================================================
--- CLAY POCKETS (RIVERBEDS, LAKES, BEACHES)
--- ============================================================================
-
-local function is_clay_here(x, y, z)
-    local n = get_noise("clay"):get_3d({x=x, y=y, z=z})
-    return n > 0.55
-end
-
--- ============================================================================
--- CAVE CARVER (SAFE VERSION)
--- ============================================================================
-
-local function carve_caves(area, data, minp, maxp)
-    local n_cave = get_noise("cave")
-
-    for idx in area:iterp(minp, maxp) do
-        local pos = area:position(idx)
-
-        if pos.y < SEA_LEVEL - 1 then
-            local n = n_cave:get_3d(pos)
-            if n > 0.35 then
-                data[idx] = c_air
-            end
-        end
-    end
-end
-
--- ============================================================================
--- TERRAIN FILL LOOP
--- ============================================================================
-
-local function generate_terrain(area, data, minp, maxp)
-    local emin, emax = area.MinEdge, area.MaxEdge
-
-    for z = minp.z, maxp.z do
-        for x = minp.x, maxp.x do
-
-            --------------------------------------------------------------------
-            -- HEIGHT
-            --------------------------------------------------------------------
-            local h = get_height(x, z)
-
-            -- Deep ocean override
-            if h < SEA_LEVEL then
-                local deep = get_ocean_depth(x, z)
-                if h < deep then
-                    h = deep
-                end
-            end
-
-            --------------------------------------------------------------------
-            -- CLIMATE (SAFE)
-            --------------------------------------------------------------------
-            local cl = climate.get_climate(x, z)
-            if not cl or not cl.temp then
-                -- fallback climate (never crash)
-                cl = {
-                    temp = 0,
-                    humid = 0,
-                    cont = 0,
-                    eros = 0,
-                    climate_zone = "temperate_medium"
-                }
-            end
-
-            --------------------------------------------------------------------
-            -- BIOME (SAFE)
-            --------------------------------------------------------------------
-            local biome = biomes.get_biome(x, z, h, 0, cl)
-            if not biome then
-                biome = "plains" -- safe fallback
-            end
-
-            --------------------------------------------------------------------
-            -- TERRAIN FILL
-            --------------------------------------------------------------------
-            for y = minp.y, maxp.y do
-                local vi = area:index(x, y, z)
-
-                if y <= h then
-                    ----------------------------------------------------------------
-                    -- BASE STONE
-                    ----------------------------------------------------------------
-                    data[vi] = c_stone
-
-                    ----------------------------------------------------------------
-                    -- MESA TERRACOTTA
-                    ----------------------------------------------------------------
-                    if is_mesa_biome(biome) then
-                        data[vi] = get_mesa_color(y)
-
-                    ----------------------------------------------------------------
-                    -- CLAY POCKETS
-                    ----------------------------------------------------------------
-                    elseif is_clay_here(x, y, z) then
-                        data[vi] = minetest.get_content_id("cw_core:clay")
-                    end
-
-                elseif y <= SEA_LEVEL then
-                    ----------------------------------------------------------------
-                    -- WATER
-                    ----------------------------------------------------------------
-                    data[vi] = c_water
+-- Blob placement
+local function place_blob(area, data, x, y, z, radius, node_id)
+    for dx = -radius, radius do
+        for dz = -radius, radius do
+            for dy = -1, 1 do
+                if dx*dx + dz*dz <= radius*radius then
+                    local vi = area:index(x + dx, y + dy, z + dz)
+                    data[vi] = node_id
                 end
             end
         end
     end
 end
 
--- ============================================================================
--- SURFACE PLACEMENT
--- ============================================================================
+-- Shoreline application
+local function apply_shoreline(area, data, x, z, h, biome_name)
+    if h < SEA_LEVEL + 3 and h > SEA_LEVEL - 3 then
+        local vi = area:index(x, h, z)
 
-local function place_surface(area, data, x, z, h, biome)
-    local top_vi = area:index(x, h, z)
-    local under_vi = area:index(x, h - 1, z)
+        -- Cold shores freeze
+        if cold_biomes[biome_name] then
+            data[vi] = c_snowblock
+            return
+        end
 
-    -- Mesa biomes use terracotta bands (already placed in PART 2)
-    if biome == "mesa" or biome == "badlands" then
+        if biome_name == "clayspire_basin" then
+            data[vi] = minetest.get_content_id("cw_core:red_sand")
+        elseif biome_name == "desert" then
+            data[vi] = minetest.get_content_id("cw_core:desert_sand")
+        else
+            data[vi] = minetest.get_content_id("cw_core:beach_sand")
+        end
+    end
+end
+
+-- Sky exposure check (E2)
+local function is_sky_exposed(pos)
+    local above = {x = pos.x, y = pos.y + 1, z = pos.z}
+    local ray = minetest.raycast(above, {x = pos.x, y = 31000, z = pos.z}, false, false)
+    for pointed in ray do
+        if pointed.type == "node" then
+            return false
+        end
+    end
+    return true
+end
+
+-- Snow accumulation (D3)
+local function apply_snow(area, data, x, z, h, biome_name)
+    if not cold_biomes[biome_name] then return end
+
+    local pos = {x = x, y = h, z = z}
+    if not is_sky_exposed(pos) then return end
+
+    local depth = 1
+
+    -- Elevation-based depth
+    if h > 80 then depth = depth + 1 end
+    if h > 100 then depth = depth + 1 end
+    if h > 120 then depth = depth + 1 end
+    if h > 140 then depth = depth + 1 end
+
+    -- Noise-based drift
+    local drift = math.floor((snow_noise:get_2d({x = x, y = z}) + 1) * 2)
+    depth = depth + drift
+
+    -- Clamp depth
+    if depth < 1 then depth = 1 end
+    if depth > 10 then depth = 10 end
+
+    local vi = area:index(x, h, z)
+
+    if depth == 1 then
+        data[vi] = c_grass_snow
         return
     end
 
-    -- Beaches
-    if biome == "beach" then
-        data[top_vi] = c_sand
-        data[under_vi] = c_sand
+    if depth >= 10 then
+        data[vi] = c_snowblock
         return
     end
 
-    -- Snow biomes
-    if biome == "snow" or biome == "tundra" or biome == "taiga" then
-        data[top_vi] = minetest.get_content_id("cw_core:snow")
-        data[under_vi] = c_dirt
-        return
-    end
-
-    -- Default: grass + dirt
-    data[top_vi] = c_grass
-    data[under_vi] = c_dirt
+    local layer_index = depth - 1
+    data[vi] = snow_layers[layer_index]
 end
 
 -- ============================================================================
--- TREE + DECOR HOOKS (STUBS FOR NOW)
+-- MAIN CALLBACK
 -- ============================================================================
 
-local function place_trees_and_decor(area, data, x, z, h, biome)
-    -- You can expand this later:
-    -- if biome == "forest" then spawn_oak_tree(...)
-    -- if biome == "taiga" then spawn_spruce_tree(...)
-    -- if biome == "jungle" then spawn_jungle_tree(...)
-    -- if biome == "savanna" then spawn_acacia_tree(...)
-end
-
--- ============================================================================
--- FINAL ON_GENERATED CALLBACK
--- ============================================================================
-
-minetest.register_on_generated(function(minp, maxp, seed)
-    local t0 = minetest.get_us_time()
-
+minetest.register_on_generated(function(minp, maxp)
     local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
     local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
     local data = vm:get_data()
 
-    -- PART 2: terrain fill
-    generate_terrain(area, data, minp, maxp)
+    local heightmap = minetest.get_mapgen_object("heightmap")
+    local biomemap  = minetest.get_mapgen_object("biomemap")
 
-    -- PART 2: caves
-    carve_caves(area, data, minp, maxp)
+    local index = 1
 
-    -- PART 3: surface + decor
     for z = minp.z, maxp.z do
         for x = minp.x, maxp.x do
-            local h = get_height(x, z)
 
-            -- Deep ocean override
-            if h < SEA_LEVEL then
-                local deep = get_ocean_depth(x, z)
-                if h < deep then
-                    h = deep
+            local h = heightmap[index]
+            local biome_id = biomemap[index]
+            local biome_name = minetest.get_biome_name(biome_id)
+
+            local rv = math.abs(river_noise:get_2d({x = x, y = z}))
+
+            -- 1. PLAINS HEIGHT SMOOTHING
+            if biome_name == "plains" and h > SEA_LEVEL + 10 then
+                local reduction = math.floor((h - (SEA_LEVEL + 10)) * 0.6)
+                local new_h = h - reduction
+
+                if new_h >= minp.y then
+                    local vi_old = area:index(x, h, z)
+                    local vi_new = area:index(x, new_h, z)
+                    data[vi_new] = data[vi_old]
+                    h = new_h
                 end
             end
 
-            -- Biome from climate
-            local cl = climate.get_climate(x, z)
-            local biome = biomes.get_biome(x, z, h, 0, cl)
+            -- 2. SHORELINES
+            apply_shoreline(area, data, x, z, h, biome_name)
 
-            -- Surface placement
-            if h >= minp.y and h <= maxp.y then
-                place_surface(area, data, x, z, h, biome)
+            -- 3. RIVERBED BLOBS
+			if h < SEA_LEVEL and h > SEA_LEVEL - 8 then
+				local r = math.random()
+			if r < 0.4 then
+				place_blob(area, data, x, h, z, 2, c_sand)
+			elseif r < 0.7 then
+				place_blob(area, data, x, h, z, 2, c_gravel)
+			elseif r < 0.9 then
+				place_blob(area, data, x, h, z, 2, c_dirt)
+			else
+				place_blob(area, data, x, h, z, 2, c_clay)
+			end
+		end
+
+
+            -- 4. RIVERBED BLOBS
+            if h < SEA_LEVEL and h > SEA_LEVEL - 8 then
+                local r = math.random()
+                if r < 0.4 then
+                    place_blob(area, data, x, h, z, 2, c_sand)
+                elseif r < 0.7 then
+                    place_blob(area, data, x, h, z, 2, c_gravel)
+                elseif r < 0.9 then
+                    place_blob(area, data, x, h, z, 2, c_dirt)
+                else
+                    place_blob(area, data, x, h, z, 2, c_clay)
+                end
             end
 
-            -- Trees + decor
-            place_trees_and_decor(area, data, x, z, h, biome)
+            -- 5. MESA TERRACOTTA BANDING
+            if biome_name == "clayspire_basin" then
+                for y = minp.y, maxp.y do
+                    local vi = area:index(x, y, z)
+                    if data[vi] == c_stone then
+                        local layer_index = (math.floor(y / 4) % #terracotta_layers) + 1
+                        data[vi] = terracotta_layers[layer_index]
+                    end
+                end
+            end
+
+            -- 6. FREEZE WATER SURFACE IN COLD BIOMES
+            if cold_biomes[biome_name] then
+                local vi_surface = area:index(x, SEA_LEVEL, z)
+                if data[vi_surface] == c_water then
+                    data[vi_surface] = c_snowblock
+                end
+
+                local vi_river = area:index(x, h + 1, z)
+                if data[vi_river] == c_water then
+                    data[vi_river] = c_snowblock
+                end
+            end
+
+            -- 7. SNOW ACCUMULATION (D3 + E2)
+            apply_snow(area, data, x, z, h, biome_name)
+
+            index = index + 1
         end
     end
 
     vm:set_data(data)
     vm:write_to_map()
     vm:update_map()
-
-    local t1 = minetest.get_us_time()
-    minetest.log("action", "[cw_mapgen] Chunk generated in " .. (t1 - t0) .. " µs")
 end)
+
+-- ============================================================================
+-- SNOW REMOVAL → GRASS REVERSION (R1)
+-- ============================================================================
+
+for _, layer in ipairs({
+    "cw_core:snow_layer_1",
+    "cw_core:snow_layer_2",
+    "cw_core:snow_layer_3",
+    "cw_core:snow_layer_4",
+    "cw_core:snow_layer_5",
+    "cw_core:snow_layer_6",
+    "cw_core:snow_layer_7",
+    "cw_core:snow_layer_8",
+}) do
+    minetest.override_item(layer, {
+        on_dig = function(pos, node, digger)
+            local below = {x = pos.x, y = pos.y - 1, z = pos.z}
+            local n = minetest.get_node(below)
+            if n.name == "cw_core:grass_block_snow" then
+                minetest.set_node(below, {name = "cw_core:grass_block"})
+            end
+            minetest.node_dig(pos, node, digger)
+        end
+    })
+end
 
