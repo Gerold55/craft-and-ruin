@@ -297,44 +297,73 @@ local function grid_slice_by_scroll(list, top_row)
 end
 
 -------------------- Recipes helper ---------------------
-local function recipe_grid(x0,y0,r)
-  local CELL2, GAP2 = 1.0, 0.10
-  local grid={{"","",""},{"","",""},{"","",""}}
-  if r.method=="normal" or r.method=="shaped" then
-    local w=r.width or 3; local it=r.items or {}
-    for i,name in ipairs(it) do
-      local row=math.floor((i-1)/w)+1; local col=((i-1)%w)+1
-      grid[row][col]=name or ""
+local function recipe_grid(x0, y0, r)
+    local CELL, GAP = 1.0, 0.10
+    local step = CELL + GAP
+    local items = r.items or {}
+    local width = (r.method == "shaped" or r.method == "normal") and (r.width or 3) or 3
+    
+    local fs = {} -- Use a table for faster string concatenation
+    
+    for i = 1, 9 do
+        local row = math.floor((i - 1) / 3) + 1
+        local col = (i - 1) % 3 + 1
+        
+        -- Calculate coordinates once per slot
+        local x = x0 + (col - 1) * step
+        local y = y0 + (row - 1) * step
+        
+        -- Always draw the slot background
+        fs[#fs + 1] = ("box[%0.2f,%0.2f;1,1;%s]"):format(x, y, SLOT)
+        
+        -- Determine which item belongs in this slot
+        local item_name = ""
+        if r.method == "shapeless" then
+            item_name = items[i] or ""
+        else
+            -- For shaped/normal: map 1D items list to 2D grid based on recipe width
+            local r_row = math.floor((i - 1) / 3)
+            local r_col = (i - 1) % 3
+            
+            if r_col < width then
+                local index = (r_row * width) + r_col + 1
+                item_name = items[index] or ""
+            end
+        end
+        
+        if item_name ~= "" then
+            fs[#fs + 1] = ("item_image[%0.2f,%0.2f;1,1;%s]"):format(x, y, item_name)
+        end
     end
-  elseif r.method=="shapeless" then
-    local it=r.items or {}; local k=1
-    for rr=1,3 do for cc=1,3 do grid[rr][cc]=it[k] or ""; k=k+1 end end
-  end
-  local fs=""
-  for rr=1,3 do for cc=1,3 do
-    local x=x0+(cc-1)*(CELL2+GAP2); local y=y0+(rr-1)*(CELL2+GAP2)
-    fs=fs..("box[%0.2f,%0.2f;1,1;%s]"):format(x,y,SLOT)
-    local it=grid[rr][cc]; if it~="" then fs=fs..("item_image[%0.2f,%0.2f;1,1;%s]"):format(x,y,it) end
-  end end
-  return fs
+    
+    return table.concat(fs)
 end
 
 -------------------- Header -----------------------------
 local function header(tab)
-  local fs = ("formspec_version[6]size[%0.2f,%0.2f;true]position[0.5,0.5]anchor[0.5,0.5]")
-            :format(UI_W, UI_H)
-			-- Kill the default gray slot fill (and gray hover), keep subtle selection/tooltip colors
-  fs = fs .. ("background9[0,0;%0.2f,%0.2f;%s;8]")
-            :format(UI_W, UI_H, bg_tex)
+    -- Initialize with version and layout settings
+    local fs = ("formspec_version[6]size[%0.2f,%0.2f]position[0.5,0.5]anchor[0.5,0.5]")
+                :format(UI_W, UI_H)
 
-  -- Optional solid tint beneath (can remove if your image is fully opaque)
-  fs = fs .. ("bgcolor[%s;true]"):format("#00000000")
-  -- Slot color overrides (transparent lists)
-  fs = fs .. "listcolors[#00000000;#8C7C5B99;#FFFFFF22;#101010;#FFFFFF]"
-  fs = fs .. ("bgcolor[%s;true]box[0,0;%0.2f,%0.2f;%s]"):format(BG, UI_W, UI_H, BG)
-  fs = fs .. ("tabheader[0.2,0.2;cw_tabs;%s;%d;true;true]"):format(TAB_NAMES, tab)
-  fs = fs .. ("box[0,%0.2f;%0.2f,%0.2f;%s]"):format(CONTENT_TOP-0.1, UI_W, STRIP_H, STRIP)
-  return fs
+    -- 1. Main Background: Using background9 for a sliced, scalable texture.
+    -- Removed the redundant #00000000 bgcolor to keep the string lean.
+    fs = fs .. ("background9[0,0;%0.2f,%0.2f;%s;8]")
+                :format(UI_W, UI_H, bg_tex)
+
+    -- 2. Slot Styling: Transparent slot backgrounds with subtle hover/selected states.
+    -- Format: [slot_bg_normal; slot_bg_hover; slot_border; label_color; highlight_color]
+    fs = fs .. "listcolors[#00000000;#8C7C5B99;#FFFFFF22;#101010;#FFFFFF]"
+
+    -- 3. Navigation: The tab header.
+    fs = fs .. ("tabheader[0.2,0.2;cw_tabs;%s;%d;true;true]")
+                :format(TAB_NAMES, tab)
+
+    -- 4. Visual Separation: A horizontal strip/divider below the tabs.
+    -- Moved slightly to ensure it doesn't overlap the tab bottom border.
+    fs = fs .. ("box[0,%0.2f;%0.2f,%0.2f;%s]")
+                :format(CONTENT_TOP - 0.1, UI_W, STRIP_H, STRIP)
+
+    return fs
 end
 
 -------------------- Page: Inventory --------------------
@@ -447,113 +476,87 @@ end
 
 -- ===================== Creative Tab (fixed & complete) ====================
 local function fs_creative(player, S)
- -- Require creative permission
- local allow = (minetest.is_creative_enabled and minetest.is_creative_enabled(player:get_player_name()))
- if not allow and minetest.settings then
-  allow = minetest.settings:get_bool("creative_mode")
- end
- if not allow then
-  return ("label[%0.2f,%0.2f;Creative requires Creative mode.]"):format(MARGIN_X, BASELINE_Y+0.3)
-       .. ("list[current_player;main;%0.2f,%0.2f;9,1;]"):format(HOTBAR_X, HOTBAR_Y)
- end
+    -- 1. Permission Check (Simplified)
+    local name = player:get_player_name()
+    local is_creative = minetest.is_creative_enabled and minetest.is_creative_enabled(name) or 
+                        (minetest.settings and minetest.settings:get_bool("creative_mode"))
 
- -- Defaults
- if not S.cat then S.cat = "all" end
- if not S.scroll then S.scroll = 0 end
+    if not is_creative then
+        return ("style_type[label;font=bold;font_size=18]label[%0.2f,%0.2f;Access Denied: Creative Mode Required]")
+                :format(MARGIN_X, BASELINE_Y)
+               .. ("list[current_player;main;%0.2f,%0.2f;8,1;]"):format(HOTBAR_X, HOTBAR_Y)
+    end
 
- -- Build item list
- local base = CATALOG[S.cat] or {}
- local list = filter_items(base, S.csearch)
- local total_rows = math.max(1, math.ceil(#list / GRID_COLS))
- local max_scroll = math.max(0, total_rows - GRID_ROWS)
- if S.scroll > max_scroll then S.scroll = max_scroll end
+    -- 2. State & Data Prep
+    S.cat = S.cat or "all"
+    S.scroll = S.scroll or 0
+    local list = filter_items(CATALOG[S.cat] or {}, S.csearch)
+    local max_scroll = math.max(0, math.ceil(#list / GRID_COLS) - GRID_ROWS)
+    if S.scroll > max_scroll then S.scroll = max_scroll end
 
- -- Start FS
- local fs = ""
- fs = fs .. page_bg(BG_CRE_TEX)
+    local fs = { page_bg(BG_CRE_TEX) }
 
- -- Search bar
- local SEARCH_X = GRID_X
- local SEARCH_Y = 0.50
- local BTN_W = 1.20
- local GAP_F = 0.20
- local GAP_C = 0.10
- local SEARCH_W = GRID_TOTAL_W - (BTN_W + BTN_W) - (GAP_F + GAP_C)
+    -- 3. Search & Header Area
+    -- Using a combined search bar for a cleaner "modern browser" look
+    local SEARCH_W = GRID_TOTAL_W - 2.5
+    fs[#fs+1] = ("field[%0.2f,0.5;%0.2f,0.7;cw_csearch;;%s]")
+                :format(GRID_X, SEARCH_W, minetest.formspec_escape(S.csearch or ""))
+    fs[#fs+1] = "field_close_on_enter[cw_csearch;false]"
+    
+    -- Compact Action Buttons
+    fs[#fs+1] = ("style[cw_csearch_go;bgcolor=#3366ff;textcolor=#ffffff]button[%0.2f,0.45;1.2,0.8;cw_csearch_go;Find]")
+                :format(GRID_X + SEARCH_W + 0.1)
+    fs[#fs+1] = ("button[%0.2f,0.45;1.1,0.8;cw_csearch_clear;Clear]")
+                :format(GRID_X + SEARCH_W + 1.4)
 
- fs = fs ..
- ("field[%0.2f,%0.2f;%0.2f,0.8;cw_csearch;;%s]field_close_on_enter[cw_csearch;false]")
- :format(SEARCH_X, SEARCH_Y, SEARCH_W, minetest.formspec_escape(S.csearch or ""))
+    -- 4. Category Navigation (Modern Tab Style)
+    local cx = GRID_X
+    local CAT_W = (GRID_TOTAL_W / #CATS) - 0.05
+    for _, c in ipairs(CATS) do
+        local style = (S.cat == c.id) and "bgcolor=#ffffff33;font=bold" or "bgcolor=#00000066"
+        fs[#fs+1] = ("style[cw_cat_%s;%s]button[%0.2f,1.4;%0.2f,0.7;cw_cat_%s;%s]")
+                    :format(c.id, style, cx, CAT_W, c.id, c.label)
+        cx = cx + CAT_W + 0.05
+    end
 
- local find_x = SEARCH_X + SEARCH_W + GAP_F
- local clear_x = find_x + BTN_W + GAP_C
+    -- 5. Items Grid with "Soft" Slot Backgrounds
+    fs[#fs+1] = ("box[%0.2f,%0.2f;%0.2f,%0.2f;#00000044]"):format(GRID_X - 0.1, GRID_Y - 0.1, GRID_TOTAL_W + 0.2, GRID_H + 0.2)
+    
+    local slice = grid_slice_by_scroll(list, S.scroll)
+    for i = 1, (GRID_ROWS * GRID_COLS) do
+        local name = slice[i]
+        local row = math.floor((i - 1) / GRID_COLS)
+        local col = (i - 1) % GRID_COLS
+        local xx = GRID_X + col * (CELL + GAP)
+        local yy = GRID_Y + row * (CELL + GAP)
 
- fs = fs .. ("button[%0.2f,%0.2f;%0.1f,0.8;cw_csearch_go;Find]"):format(find_x, SEARCH_Y, BTN_W)
- fs = fs .. ("button[%0.2f,%0.2f;%0.1f,0.8;cw_csearch_clear;Clear]"):format(clear_x, SEARCH_Y, BTN_W)
+        -- Slot visual
+        fs[#fs+1] = ("box[%0.2f,%0.2f;%0.2f,%0.2f;%s]"):format(xx, yy, CELL, CELL, SLOT)
+        
+        if name then
+            local btn_name = "cw_item_" .. i
+            fs[#fs+1] = ("item_image_button[%0.2f,%0.2f;%0.2f,%0.2f;%s;%s;]")
+                        :format(xx, yy, CELL, CELL, name, btn_name)
+            local desc = minetest.registered_items[name] and minetest.registered_items[name].description or name
+            fs[#fs+1] = ("tooltip[%s;%s]"):format(btn_name, minetest.formspec_escape(desc))
+        end
+    end
 
- -- Category buttons
- local cx = GRID_X
- local CAT_Y = SEARCH_Y + 0.95
- local CAT_GAP = 0.08
- local CAT_H = 0.90
- local CAT_W = (GRID_TOTAL_W - CAT_GAP * (#CATS - 1)) / #CATS
+    -- 6. Integrated Scrollbar
+    local SB_X = GRID_X + GRID_TOTAL_W + 0.15
+    fs[#fs+1] = ("scrollbaroptions[max=%d;thumbsize=%d]scrollbar[%0.2f,%0.2f;0.4,%0.2f;vertical;cw_scroll;%d]")
+                :format(max_scroll, GRID_ROWS, SB_X, GRID_Y, GRID_H, S.scroll)
 
- for _,c in ipairs(CATS) do
-  fs = fs .. ("button[%0.2f,%0.2f;%0.2f,%0.2f;cw_cat_%s;%s]")
-   :format(cx, CAT_Y, CAT_W, CAT_H, c.id, c.label)
-  cx = cx + CAT_W + CAT_GAP
- end
+    -- 7. Footer: Player Hotbar
+    fs[#fs+1] = "label[0.85," .. (UI_H - 1.8) .. ";Quick Access]"
+    fs[#fs+1] = ("list[current_player;main;0.85,%0.2f;9,1;]"):format(UI_H - 1.4)
 
- -- Grid background
- fs = fs .. ("box[%0.2f,%0.2f;%0.2f,%0.2f;#00000018]")
-  :format(GRID_X, GRID_Y - 0.06, GRID_TOTAL_W, GRID_H + 0.12)
+    -- 8. Utility Logic (Shift-Click Trash)
+    local det_trash = ensure_trash(player)
+    fs[#fs+1] = ("list[detached:%s;trash;-10,-10;1,1;]"):format(det_trash)
+    fs[#fs+1] = ("listring[current_player;main]listring[detached:%s;trash]"):format(det_trash)
 
- -- Items grid
- local slice = grid_slice_by_scroll(list, S.scroll)
- local i = 0
- for r = 0, GRID_ROWS - 1 do
-  for c = 0, GRID_COLS - 1 do
-   i = i + 1
-   local name = slice[i]
-   local xx = GRID_X + c*(CELL + GAP)
-   local yy = GRID_Y + r*(CELL + GAP)
-
-   fs = fs .. ("box[%0.2f,%0.2f;%0.2f,%0.2f;%s]"):format(xx, yy, CELL, CELL, SLOT)
-   if name then
-    local bid = "cw_item_" .. i
-    fs = fs .. ("item_image_button[%0.2f,%0.2f;%0.2f,%0.2f;%s;%s;]")
-     :format(xx, yy, CELL, CELL, name, bid)
-    local desc = (minetest.registered_items[name].description or name)
-    fs = fs .. ("tooltip[%s;%s]"):format(bid, minetest.formspec_escape(desc))
-   end
-  end
- end
-
- -- Scroll bar
- local SB_X = GRID_X + GRID_TOTAL_W + 0.12
- local SB_Y = GRID_Y - 0.06
- local SB_W = 0.50
- local SB_H = GRID_H + 0.12
-
- fs = fs .. ("scrollbaroptions[max=%d;thumbsize=%d]")
-  :format(math.max(1,max_scroll), math.max(1,GRID_ROWS))
- fs = fs .. ("scrollbar[%0.2f,%0.2f;%0.2f,%0.2f;vertical;cw_scroll;%d]")
-  :format(SB_X, SB_Y, SB_W, SB_H, S.scroll)
-
- -- Scroll buttons (backup)
- fs = fs .. ("button[%0.2f,%0.2f;0.6,0.6;cw_scroll_up;▲]"):format(SB_X, SB_Y - 0.7)
- fs = fs .. ("button[%0.2f,%0.2f;0.6,0.6;cw_scroll_dn;▼]"):format(SB_X, SB_Y + SB_H + 0.1)
-
- -- Creative hotbar
- local HB_X = 0.85
- local HB_Y = UI_H - 1.50
- fs = fs .. ("list[current_player;main;%0.2f,%0.2f;9,1;]"):format(HB_X, HB_Y)
-
- -- Invisible 1-slot trash to catch shift-click
- local det_trash = ensure_trash(player)
- fs = fs .. ("list[detached:%s;trash;-100,-100;1,1;]"):format(det_trash)
- fs = fs .. ("listring[current_player;main]listring[detached:%s;trash]"):format(det_trash)
-
- return fs
+    return table.concat(fs)
 end
 
  -- ===================== Creative Tab (wrapped correctly) =====================

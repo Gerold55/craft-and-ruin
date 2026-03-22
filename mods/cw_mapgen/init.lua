@@ -9,6 +9,7 @@ local mp = minetest.get_modpath("cw_mapgen")
 dofile(mp .. "/climate.lua")
 dofile(mp .. "/biomes.lua")
 dofile(mp .. "/decor_postgen.lua")
+--dofile(mp .. "/decor.lua")
 
 -- Load mapgen last
 dofile(mp .. "/mapgen_v7.lua")
