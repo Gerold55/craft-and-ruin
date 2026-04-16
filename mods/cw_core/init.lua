@@ -46,6 +46,7 @@ end)
 
 dofile(modpath .. "/nodes.lua")
 dofile(modpath .. "/nodes_building.lua")
+dofile(modpath .. "/torch.lua")
 dofile(modpath .. "/terracotta.lua")
 dofile(modpath .. "/trees.lua")
 dofile(modpath .. "/hotbar.lua")

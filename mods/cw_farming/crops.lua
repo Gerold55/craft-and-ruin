@@ -125,7 +125,7 @@ local function register_staged_crop(args)
 end
 
 -- =======================
--- WHEAT (7 stages)
+-- WHEAT (4 stages)
 -- =======================
 register_staged_crop({
   basename = "cw_farming:wheat",
@@ -146,7 +146,7 @@ register_staged_crop({
 })
 
 -- =======================
--- POTATO (7 stages)
+-- POTATO (4 stages)
 -- =======================
 register_staged_crop({
   basename = "cw_farming:potato",
@@ -166,7 +166,7 @@ register_staged_crop({
 })
 
 -- =======================
--- CARROT (7 stages)
+-- CARROT (4 stages)
 -- =======================
 register_staged_crop({
   basename = "cw_farming:carrot",
@@ -179,9 +179,51 @@ register_staged_crop({
   base_time = 120,
   groups = { plant=1, cw_crop=1 },
   final_drops = {
-    {items = {"cw_farming:carrot_item"}, rarity = 1},
-    {items = {"cw_farming:carrot_item"}, rarity = 1},
-    {items = {"cw_farming:carrot_item"}, rarity = 2},
+    {items = {"cw_farming:carrot"}, rarity = 1},
+    {items = {"cw_farming:carrot"}, rarity = 1},
+    {items = {"cw_farming:carrot"}, rarity = 2},
     {items = {"cw_farming:seed_carrot"}, rarity = 2},
+  }
+})
+
+-- =======================
+-- TOMATO (4 stages)
+-- =======================
+register_staged_crop({
+  basename = "cw_farming:tomato",
+  pretty = "Tomatoes",
+  seed_name = "cw_farming:seed_tomato",
+  seed_tex  = "farming_tomato_seed.png",
+  stage_textures = {
+    "farming_tomato_1.png", "farming_tomato_2.png", "farming_tomato_3.png", "farming_tomato_4.png",
+  },
+  base_time = 120,
+  groups = { plant=1, cw_crop=1 },
+  final_drops = {
+    {items = {"cw_farming:tomato"}, rarity = 1},
+    {items = {"cw_farming:tomato"}, rarity = 1},
+    {items = {"cw_farming:tomato"}, rarity = 2},
+    {items = {"cw_farming:seed_tomato"}, rarity = 2},
+  }
+})
+
+-- =======================
+-- MELON (4 stages)
+-- =======================
+register_staged_crop({
+  basename = "cw_farming:melon",
+  pretty = "Melon",
+  seed_name = "cw_farming:seed_melon",
+  seed_tex  = "farming_tomato_seed.png",
+  stage_textures = {
+    "farming_tomato_1.png", "farming_tomato_2.png", "farming_tomato_3.png", "farming_tomato_4.png",
+  },
+  base_time = 120,
+  groups = { plant=1, cw_crop=1 },
+  final_drops = {
+    {items = {"cw_farming:slice_melon"}, rarity = 1},
+    {items = {"cw_farming:slice_melon"}, rarity = 1},
+    {items = {"cw_farming:slice_melon"}, rarity = 2},
+    {items = {"cw_farming:seed_melon"}, rarity = 2},
   }
 })

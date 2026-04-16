@@ -25,7 +25,7 @@ local function maybe_trample(pos, node)
     minetest.swap_node(pos, {name = cw_farming.NODES.dirt})
   else
     -- Fallback to default dirt name if needed
-    minetest.swap_node(pos, {name = "default:dirt"})
+    minetest.swap_node(pos, {name = "cw_core:dirt"})
   end
 end
 
@@ -33,111 +33,147 @@ local function start_soil_timer(pos, wet)
   minetest.get_node_timer(pos):start(wet and WET_TIMEOUT or DRY_TIMEOUT)
 end
 
--- Dry soil
 minetest.register_node("cw_farming:soil", {
-  description = S("Farmland"),
-  tiles = {"cw_farming_soil.png"},
-  drawtype = "nodebox",
-  paramtype = "light",
-  sunlight_propagates = true,
-  walkable = true,
-  groups = {crumbly=2, soil=1, oddly_breakable_by_hand=1},
-  sounds = minetest.registered_nodes[cw_farming.NODES.dirt] and minetest.registered_nodes[cw_farming.NODES.dirt].sounds or nil,
-  node_box = {
-    type = "fixed",
-    -- Slightly shorter than full block like farmland
-    fixed = {-0.5,-0.5,-0.5, 0.5, -0.375, 0.5},
-  },
-  on_construct = function(pos)
-    start_soil_timer(pos, false)
-  end,
-  on_timer = function(pos, elapsed)
-    maybe_trample(pos)
-    if cw_farming.near_water(pos, SOIL_WET_RADIUS) then
-      minetest.swap_node(pos, {name="cw_farming:soil_wet"})
-      start_soil_timer(pos, true)
-      return false
-    end
-    start_soil_timer(pos, false)
-    return false
-  end,
-  -- If dug or built upon, behave
-  on_neighbor_changed = function(pos)
-    maybe_trample(pos)
-  end,
+    description = "Farming Soil",
+    tiles = {"cw_farming_soil.png"},
+    groups = {crumbly = 2, soil = 1},
+    sounds = minetest.registered_nodes[cw_farming.NODES.dirt]
+    and minetest.registered_nodes[cw_farming.NODES.dirt].sounds
+    or minetest.node_sound_dirt_defaults(),
+
+    -- Make the block visually lower (like Minecraft farmland)
+    drawtype = "nodebox",
+    paramtype = "light",
+
+    node_box = {
+        type = "fixed",
+        -- Full block is -0.5 to +0.5
+        -- Lowered farmland is 1/16 lower (0.0625)
+        fixed = {
+            {-0.5, -0.5, -0.5, 0.5, 0.4375, 0.5}
+        }
+    },
+
+    -- Optional: prevent placing blocks inside the lowered top
+    collision_box = {
+        type = "fixed",
+        fixed = {
+            {-0.5, -0.5, -0.5, 0.5, 0.4375, 0.5}
+        }
+    },
+
+    -- Optional: farmland dries out
+    on_timer = function(pos, elapsed)
+        -- your hydration logic here
+    end,
 })
 
--- Wet soil
+-- Wet soil (hydrated farmland)
 minetest.register_node("cw_farming:soil_wet", {
-  description = S("Hydrated Farmland"),
-  tiles = {"cw_farming_soil_wet.png"},
-  drawtype = "nodebox",
-  paramtype = "light",
-  sunlight_propagates = true,
-  walkable = true,
-  groups = {crumbly=2, soil=1, wet=1, oddly_breakable_by_hand=1, not_in_creative_inventory=1},
-  drop = "cw_farming:soil", -- drop dry variant
-  sounds = minetest.registered_nodes[cw_farming.NODES.dirt] and minetest.registered_nodes[cw_farming.NODES.dirt].sounds or nil,
-  node_box = {
-    type = "fixed",
-    fixed = {-0.5,-0.5,-0.5, 0.5, -0.375, 0.5},
-  },
-  on_construct = function(pos)
-    start_soil_timer(pos, true)
-  end,
-  on_timer = function(pos, elapsed)
-    maybe_trample(pos)
-    if not cw_farming.near_water(pos, SOIL_WET_RADIUS) then
-      -- Dry out slowly if there is no crop above; stay wet longer if supporting a plant
-      local above = minetest.get_node({x=pos.x, y=pos.y+1, z=pos.z})
-      local has_crop = minetest.get_item_group(above.name, "cw_crop") > 0
-      if not has_crop then
-        minetest.swap_node(pos, {name="cw_farming:soil"})
-        start_soil_timer(pos, false)
+    description = S("Hydrated Farmland"),
+    tiles = {"cw_farming_soil_wet.png"},
+
+    drawtype = "nodebox",
+    paramtype = "light",
+    sunlight_propagates = true,
+    walkable = true,
+
+    groups = {
+        crumbly = 2,
+        soil = 1,
+        wet = 1,
+        oddly_breakable_by_hand = 1,
+        not_in_creative_inventory = 1,
+    },
+
+    drop = "cw_farming:soil", -- always drop dry soil
+
+    sounds = minetest.registered_nodes[cw_farming.NODES.dirt]
+    and minetest.registered_nodes[cw_farming.NODES.dirt].sounds
+    or minetest.node_sound_dirt_defaults(),
+
+    -- Lowered farmland (same height as dry soil)
+    node_box = {
+        type = "fixed",
+        fixed = {
+            {-0.5, -0.5, -0.5, 0.5, 0.4375, 0.5}
+        }
+    },
+
+    collision_box = {
+        type = "fixed",
+        fixed = {
+            {-0.5, -0.5, -0.5, 0.5, 0.4375, 0.5}
+        }
+    },
+
+    on_construct = function(pos)
+        start_soil_timer(pos, true)
+    end,
+
+    on_timer = function(pos, elapsed)
+        maybe_trample(pos)
+
+        -- Dry out if no water nearby
+        if not cw_farming.near_water(pos, SOIL_WET_RADIUS) then
+            local above = minetest.get_node({x = pos.x, y = pos.y + 1, z = pos.z})
+            local has_crop = minetest.get_item_group(above.name, "cw_crop") > 0
+
+            -- Only dry if no crop above
+            if not has_crop then
+                minetest.swap_node(pos, {name = "cw_farming:soil"})
+                start_soil_timer(pos, false)
+                return false
+            end
+        end
+
+        -- Stay wet
+        start_soil_timer(pos, true)
         return false
-      end
-    end
-    start_soil_timer(pos, true)
-    return false
-  end,
-  on_neighbor_changed = function(pos)
-    maybe_trample(pos)
-  end,
+    end,
+
+    on_neighbor_changed = function(pos)
+        maybe_trample(pos)
+    end,
 })
 
--- Hoe tool (simple wooden hoe so players can start)
 minetest.register_tool("cw_farming:hoe_wood", {
-  description = S("Wooden Hoe"),
-  inventory_image = "cw_farming_hoe_wood.png",
-  groups = {hoe=1},
-  on_use = function(itemstack, user, pointed_thing)
-    if pointed_thing.type ~= "node" then return itemstack end
-    local pos = pointed_thing.under
-    local node = minetest.get_node(pos)
-    -- Only till dirt-like blocks
-    local nname = node.name
-    local ok = (
-      nname == cw_farming.NODES.dirt or
-      nname == cw_farming.NODES.dirt_with_grass or
-      nname == "default:dirt" or
-      nname == "default:dirt_with_grass"
-    )
-    if not ok then return itemstack end
+    description = S("Wooden Hoe"),
+    inventory_image = "cw_farming_hoe_wood.png",
+    groups = {hoe=1},
 
-    -- Must have air or plant above
-    local above = vector.add(pos, {x=0,y=1,z=0})
-    local nn = minetest.get_node(above).name
-    if nn ~= "air" and minetest.get_item_group(nn, "plant") == 0 then
-      return itemstack
+    on_use = function(itemstack, user, pointed_thing)
+        if pointed_thing.type ~= "node" then return itemstack end
+
+        local pos = pointed_thing.under
+        local node = minetest.get_node(pos)
+        local nname = node.name
+
+        -- Allow tilling of cw_core dirt + grass_block
+        local ok = (
+            nname == "cw_core:dirt" or
+            nname == "cw_core:grass_block" or
+            nname == "default:dirt" or
+            nname == "default:dirt_with_grass"
+        )
+
+        if not ok then return itemstack end
+
+        -- Must have air or plant above
+        local above = vector.add(pos, {x=0,y=1,z=0})
+        local nn = minetest.get_node(above).name
+        if nn ~= "air" and minetest.get_item_group(nn, "plant") == 0 then
+            return itemstack
+        end
+
+        minetest.sound_play("default_dig_crumbly", {pos=pos, gain=0.6}, false)
+        minetest.swap_node(pos, {name="cw_farming:soil"})
+        minetest.get_node_timer(pos):start(DRY_TIMEOUT)
+
+        -- wear a bit
+        itemstack:add_wear(65535 / 100)
+        return itemstack
     end
-
-    minetest.sound_play("default_dig_crumbly", {pos=pos, gain=0.6}, false)
-    minetest.swap_node(pos, {name="cw_farming:soil"})
-    minetest.get_node_timer(pos):start(DRY_TIMEOUT)
-    -- wear a bit
-    itemstack:add_wear(65535 / 100) -- ~100 uses
-    return itemstack
-  end
 })
 
 -- Simple craft for wooden hoe

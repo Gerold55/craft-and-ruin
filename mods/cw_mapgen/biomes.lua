@@ -190,8 +190,12 @@ biome({
     node_filler = "cw_core:dirt",
     depth_filler = 3,
     node_stone = "cw_core:stone",
+
+    -- Swamps sit at low elevation
     y_min = 0,
-    y_max = 70,
+    y_max = 20,
+
+    -- Warm + very humid
     heat_point = 60,
     humidity_point = 90,
 })

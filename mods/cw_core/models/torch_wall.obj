@@ -1,0 +1,38 @@
+# torch_wall.obj — AI‑generated angled wall torch
+o TorchWall
+
+# Stick bottom (attached to wall)
+v -0.200 0.000 0.000
+v -0.150 0.000 0.050
+v -0.150 0.000 -0.050
+
+# Stick mid
+v -0.050 0.200 0.000
+v -0.020 0.200 0.040
+v -0.020 0.200 -0.040
+
+# Stick top
+v 0.050 0.350 0.000
+v 0.020 0.350 0.060
+v 0.020 0.350 -0.060
+
+# Head
+v 0.080 0.450 0.000
+v 0.050 0.450 0.080
+v 0.050 0.450 -0.080
+
+usemtl torch
+
+# Stick faces
+f 1 2 5 4
+f 1 4 6 3
+f 2 5 8 7
+f 3 6 9 7
+
+# Head faces
+f 7 8 11 10
+f 7 9 12 10
+f 8 11 12 9
+
+# Head top
+f 10 11 12

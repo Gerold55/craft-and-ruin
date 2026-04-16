@@ -22,6 +22,15 @@ minetest.register_craft({
   }
 })
 
+minetest.register_craft({
+  output = "cw_farming:melon",
+  recipe = {
+    {"cw_farming:slice_melon", "cw_farming:slice_melon", "cw_farming:slice_melon"},
+    {"cw_farming:slice_melon", "cw_farming:slice_melon", "cw_farming:slice_melon"},
+    {"cw_farming:slice_melon", "cw_farming:slice_melon", "cw_farming:slice_melon"},
+  }
+})
+
 minetest.register_craftitem("cw_farming:bread", {
   description = S("Bread"),
   inventory_image = "cw_farming_bread.png",
@@ -58,4 +67,34 @@ minetest.register_craftitem("cw_farming:carrot_item", {
   description = S("Carrot"),
   inventory_image = "cw_farming_carrot_item.png",
   on_use = minetest.item_eat(3),
+})
+
+
+-- TOMATO
+minetest.register_craftitem("cw_farming:seed_tomato", {
+  description = S("Tomato Seeds"),
+  inventory_image = "farming_tomato_seed.png",
+  groups = {seed=1, cw_seed=1},
+})
+
+minetest.register_craftitem("cw_farming:tomato", {
+  description = S("Tomato"),
+  inventory_image = "farming_tomato.png",
+})
+
+-- TOMATO
+minetest.register_craftitem("cw_farming:seed_melon", {
+  description = S("Melon Seeds"),
+  inventory_image = "farming_melon_seeds.png",
+  groups = {seed=1, cw_seed=1},
+})
+
+minetest.register_craftitem("cw_farming:melon", {
+  description = S("Melon"),
+  inventory_image = "farming_melon.png",
+})
+
+minetest.register_craftitem("cw_farming:slice_melon", {
+  description = S("Melon Slice"),
+  inventory_image = "farming_tomato.png",
 })

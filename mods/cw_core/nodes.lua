@@ -1195,11 +1195,26 @@ core.register_node("cw_core:clay", {
 
 -- -------- Desert props (future biome) --------
 core.register_node(modname..":cactus", {
-  description="Cactus",
-  tiles={"cw_cactus_top.png","cw_cactus_top.png","cw_cactus_side.png"},
-  paramtype2="facedir",
-  groups={snappy=1,choppy=3,oddly_breakable_by_hand=1,flammable=1,cactus=1},
-  sounds=node_sound_wood(),
+    description = "Cactus",
+    tiles = {
+        "cw_cactus_top.png",
+        "cw_cactus_top.png",
+        "cw_cactus_side.png"
+    },
+    paramtype2 = "facedir",
+
+    groups = {
+        snappy = 1,
+        choppy = 3,
+        oddly_breakable_by_hand = 1,
+        flammable = 1,
+        cactus = 1,
+        damage_per_second = 1, -- 1 HP per second
+    },
+
+    damage_per_second = 1, -- actual damage
+
+    sounds = node_sound_wood(),
 })
 
 -- =========================
