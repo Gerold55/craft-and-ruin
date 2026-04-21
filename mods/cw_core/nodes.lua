@@ -529,6 +529,24 @@ minetest.register_abm({
 	end
 })
 
+core.register_node("cw_core:log_balsa", {
+  description = S("Balsa Log"),
+  tiles = {"ws_log_balsa_top.png","ws_log_balsa_top.png","ws_log_balsa.png"},
+  paramtype2 = "facedir",
+  groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
+  sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+  on_place = core.rotate_node
+})
+
+core.register_node("cw_core:planks_balsa", {
+  description = S("Balsa Planks"),
+  tiles = {"ws_planks_balsa.png"},
+  paramtype2 = "facedir",
+  groups = {wood=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
+  sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
+})
+
+
 --========================================================
 -- Leaves (palette-tinted, biome uniform)
 --  - paramtype2="color"

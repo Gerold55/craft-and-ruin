@@ -1,365 +1,150 @@
--- ============================================================================
--- Craft & Ruin – Biomes (Clean Rewrite)
--- Minecraft-style climate + height, C2 cold family, swamp, inland mesa
--- ============================================================================
+--
+-- CRAFT & RUIN — MINECRAFT‑STYLE BIOMES FOR V7
+-- Terrain shape is handled by v7. Biomes only define surface layers.
+--
 
-local function biome(def)
-    minetest.register_biome(def)
-end
-
--- ============================================================================
--- OCEANS
--- ============================================================================
-
-biome({
-    name = "ocean",
-    node_top = "cw_core:sand",
+-----------------------------
+-- PLAINS (low elevation)
+-----------------------------
+minetest.register_biome({
+    name = "cw_biomes:plains",
+    node_top = "cw_core:grass_block",
     depth_top = 1,
-    node_filler = "cw_core:sand",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = -32,
-    y_max = 0,
+    node_filler = "cw_core:dirt",
+    depth_filler = 5,   -- deeper dirt to hide stone
+
+    y_min = 1,
+    y_max = 80,
+
     heat_point = 50,
     humidity_point = 50,
+    vertical_blend = 6,
 })
 
-biome({
-    name = "deep_ocean",
-    node_top = "cw_core:sand",
-    depth_top = 1,
-    node_filler = "cw_core:stone",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = -31000,
-    y_max = -33,
-    heat_point = 50,
-    humidity_point = 50,
-})
-
--- Frozen ocean (C2)
-biome({
-    name = "frozen_ocean",
-    node_top = "cw_core:snow_block",
-    depth_top = 1,
-    node_filler = "cw_core:stone",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = -32,
-    y_max = 0,
-    heat_point = 5,
-    humidity_point = 60,
-})
-
--- ============================================================================
--- BEACHES (NO MESA BEACH)
--- ============================================================================
-
-biome({
-    name = "beach",
-    node_top = "cw_core:beach_sand",
-    depth_top = 1,
-    node_filler = "cw_core:beach_sand",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 0,
-    y_max = 4,
-    heat_point = 60,
-    humidity_point = 40,
-})
-
-biome({
-    name = "cold_beach",
-    node_top = "cw_core:snow_block",
-    depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 0,
-    y_max = 4,
-    heat_point = 10,
-    humidity_point = 50,
-})
-
--- ============================================================================
--- PLAINS FAMILY
--- ============================================================================
-
-biome({
-    name = "plains",
+-----------------------------
+-- BIRCH FOREST
+-----------------------------
+minetest.register_biome({
+    name = "cw_biomes:birch_forest",
     node_top = "cw_core:grass_block",
     depth_top = 1,
     node_filler = "cw_core:dirt",
     depth_filler = 5,
-    node_stone = "cw_core:stone",
-    y_min = 4,
-    y_max = 80,
-    heat_point = 45,
-    humidity_point = 45,
-})
 
--- Snowy plains (C2)
-biome({
-    name = "snowy_plains",
-    node_top = "cw_core:grass_block_snow",
-    depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 5,
-    node_stone = "cw_core:stone",
-    y_min = 4,
-    y_max = 80,
-    heat_point = 5,
-    humidity_point = 40,
-})
-
--- Rolling hills as higher plains variant
-biome({
-    name = "rolling_hills",
-    node_top = "cw_core:grass_block",
-    depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 5,
-    node_stone = "cw_core:stone",
-    y_min = 40,
-    y_max = 120,
-    heat_point = 45,
-    humidity_point = 45,
-})
-
--- ============================================================================
--- FORESTS (TEMPERATE / WARM)
--- ============================================================================
-
-biome({
-    name = "forest",
-    node_top = "cw_core:grass_block",
-    depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 4,
+    y_min = 1,
     y_max = 90,
-    heat_point = 50,
+
+    heat_point = 40,
     humidity_point = 70,
+    vertical_blend = 6,
 })
 
-biome({
-    name = "birch_forest",
+-----------------------------
+-- CHERRY GROVE
+-----------------------------
+minetest.register_biome({
+    name = "cw_biomes:cherry_grove",
     node_top = "cw_core:grass_block",
     depth_top = 1,
     node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 4,
+    depth_filler = 5,
+
+    y_min = 1,
     y_max = 90,
-    heat_point = 55,
+
+    heat_point = 30,
     humidity_point = 60,
+    vertical_blend = 6,
 })
 
-biome({
-    name = "cherry_grove",
+-----------------------------
+-- SAVANNA (transition biome)
+-----------------------------
+minetest.register_biome({
+    name = "cw_biomes:savanna",
     node_top = "cw_core:grass_block",
     depth_top = 1,
     node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 20,
-    y_max = 100,
-    heat_point = 45,
-    humidity_point = 80,
-})
+    depth_filler = 4,
 
-biome({
-    name = "jungle",
-    node_top = "cw_core:grass_block",
-    depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 4,
-    y_max = 100,
-    heat_point = 90,
-    humidity_point = 90,
-})
-
--- Swamp
-biome({
-    name = "swamp",
-    node_top = "cw_core:grass_block",
-    depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-
-    -- Swamps sit at low elevation
-    y_min = 0,
-    y_max = 20,
-
-    -- Warm + very humid
-    heat_point = 60,
-    humidity_point = 90,
-})
-
--- ============================================================================
--- WARM / DRY (SAVANNA / DESERT / MESA INLAND)
--- ============================================================================
-
-biome({
-    name = "savanna",
-    node_top = "cw_core:grass_block",
-    depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 4,
+    y_min = 1,
     y_max = 80,
+
     heat_point = 70,
-    humidity_point = 35,
+    humidity_point = 30,
+    vertical_blend = 6,
 })
 
-biome({
-    name = "desert",
-    node_top = "cw_core:desert_sand",
-    depth_top = 1,
-    node_filler = "cw_core:desert_sand",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 4,
+-----------------------------
+-- DESERT (Minecraft‑like)
+-----------------------------
+minetest.register_biome({
+    name = "cw_biomes:desert",
+    node_top = "cw_core:sand",
+    depth_top = 3,
+    node_filler = "cw_core:sand",
+    depth_filler = 2,
+    node_stone = "cw_core:sandstone",
+
+    y_min = 1,
     y_max = 80,
+
     heat_point = 90,
     humidity_point = 10,
+    vertical_blend = 4,
 })
 
--- Mesa / Badlands – inland only (no beach)
-biome({
-    name = "clayspire_basin",
-    node_top = "cw_core:terracotta_yellow",
+-----------------------------
+-- MOUNTAIN MEADOW (foothills)
+-- Grass-covered slopes up to y=100
+-----------------------------
+minetest.register_biome({
+    name = "cw_biomes:mountain_meadow",
+    node_top = "cw_core:grass_block",
     depth_top = 1,
-    node_filler = "cw_core:terracotta_orange",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
+    node_filler = "cw_core:dirt",
+    depth_filler = 4,
+
     y_min = 70,
-    y_max = 160,
-    heat_point = 95,
-    humidity_point = 25,
+    y_max = 100,
+
+    heat_point = 40,
+    humidity_point = 60,
+    vertical_blend = 8,
 })
 
--- ============================================================================
--- COOL / COLD FORESTS (C2 FAMILY)
--- ============================================================================
-
-biome({
-    name = "spruce_forest",
-    node_top = "cw_core:grass_block",
+-----------------------------
+-- STONY PEAKS (stone only above y=100)
+-----------------------------
+minetest.register_biome({
+    name = "cw_biomes:stony_peaks",
+    node_top = "cw_core:stone",
     depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 4,
-    y_max = 90,
+    node_filler = "cw_core:stone",
+    depth_filler = 4,
+
+    y_min = 100,
+    y_max = 150,
+
     heat_point = 30,
-    humidity_point = 65,
+    humidity_point = 20,
+    vertical_blend = 8,
 })
 
--- Taiga (non-snowy)
-biome({
-    name = "taiga",
-    node_top = "cw_core:grass_block",
-    depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 4,
-    y_max = 90,
-    heat_point = 20,
-    humidity_point = 60,
-})
-
--- Snowy taiga (your taiga_forest)
-biome({
-    name = "taiga_forest",
-    node_top = "cw_core:grass_block_snow",
-    depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 0,
-    y_max = 90,
-    heat_point = 10,
-    humidity_point = 60,
-})
-
--- Ice biome (snow everywhere)
-biome({
-    name = "ice_biome",
-    node_top = "cw_core:snow_block",
-    depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 0,
-    y_max = 31000,
-    heat_point = 0,
-    humidity_point = 40,
-})
-
--- Frozen river (C2)
-biome({
-    name = "frozen_river",
-    node_top = "cw_core:snow_block",
-    depth_top = 1,
-    node_filler = "cw_core:dirt",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = -4,
-    y_max = 2,
-    heat_point = 0,
-    humidity_point = 60,
-})
-
--- ============================================================================
--- MOUNTAINS / SLOPES / PEAKS (STONE + SNOW, NO DIRT)
--- ============================================================================
-
--- Base mountains – stone
-biome({
-    name = "mountains",
-    node_top = "cw_core:stone",
+-----------------------------
+-- SNOWY SLOPES (snow above y=90)
+-----------------------------
+minetest.register_biome({
+    name = "cw_biomes:snowy_slopes",
+    node_top = "cw_core:snow",
     depth_top = 1,
     node_filler = "cw_core:stone",
     depth_filler = 3,
-    node_stone = "cw_core:stone",
+
     y_min = 90,
-    y_max = 160,
-    heat_point = 20,
-    humidity_point = 30,
-})
+    y_max = 150,
 
--- Snowy slopes (C2)
-biome({
-    name = "snowy_slopes",
-    node_top = "cw_core:stone",
-    depth_top = 1,
-    node_filler = "cw_core:stone",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 120,
-    y_max = 200,
     heat_point = 10,
     humidity_point = 40,
+    vertical_blend = 8,
 })
-
--- Frozen peaks (C2)
-biome({
-    name = "frozen_peaks",
-    node_top = "cw_core:snow_block",
-    depth_top = 1,
-    node_filler = "cw_core:stone",
-    depth_filler = 3,
-    node_stone = "cw_core:stone",
-    y_min = 180,
-    y_max = 31000,
-    heat_point = 0,
-    humidity_point = 30,
-})
-

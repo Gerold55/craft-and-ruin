@@ -1,26 +1,81 @@
--- cw_mapgen/decorations.lua
--- Spawns reeds only where the ground (grass/dirt/sand) is adjacent to water.
--- Plains-only by default; change BIOME_NAME to match your biome registration.
+-- Simple helper not strictly needed, but keeps things tidy
+local function deco(def)
+    minetest.register_decoration(def)
+end
 
-local BIOME_NAME = "cw_plains"  -- adjust if your biome is named differently
+-- PLAINS GRASS ---------------------------------------------------------
+deco({
+    name = "cw_biomes:grass_plains",
+    deco_type = "simple",
+    place_on = {"cw_core:grass_block"},
+    sidelen = 16,
+    fill_ratio = 0.10,
+    decoration = "cw_core:grass_decor",
+    biomes = {"cw_biomes:plains"},
+})
 
--- We use a simple decoration that places a single base reed node.
--- The node itself (after_place/on_construct) grows to 2-3 tall.
--- spawn_by requires a node name, so this targets your water source node.
+-- PLAINS FLOWERS -------------------------------------------------------
+deco({
+    name = "cw_biomes:flowers_plains",
+    deco_type = "simple",
+    place_on = {"cw_core:grass_block"},
+    sidelen = 16,
+    fill_ratio = 0.02,
+    decoration = {"cw_core:flower_daisy"},
+    biomes = {"cw_biomes:plains"},
+})
 
-minetest.register_decoration({
-  name = "cw_mapgen:reeds_plains_shore",
-  deco_type = "simple",
-  place_on = {"cw_core:grass_block", "cw_core:dirt", "cw_core:sand"},
-  biomes = {BIOME_NAME},
-  sidelen = 16,
-  -- Only place when adjacent to water
-  spawn_by = "cw_core:water_source",
-  num_spawn_by = 1,
+-- BIRCH FOREST FLOWERS -------------------------------------------------
+deco({
+    name = "cw_biomes:flowers_birch",
+    deco_type = "simple",
+    place_on = {"cw_core:grass_block"},
+    sidelen = 16,
+    fill_ratio = 0.02,
+    decoration = {"cw_core:flower_bluebell"},
+    biomes = {"cw_biomes:birch_forest"},
+})
 
-  -- Light density; increase for more reeds along shores
-  fill_ratio = 0.006,
+-- CHERRY GROVE GRASS ---------------------------------------------------
+deco({
+    name = "cw_biomes:grass_cherry",
+    deco_type = "simple",
+    place_on = {"cw_core:grass_block"},
+    sidelen = 16,
+    fill_ratio = 0.06,
+    decoration = "cw_core:grass_decor",
+    biomes = {"cw_biomes:cherry_grove"},
+})
 
-  y_min = -31000, y_max = 31000,
-  decoration = "cw_core:reeds",
+-- DESERT CACTUS --------------------------------------------------------
+deco({
+    name = "cw_biomes:cactus",
+    deco_type = "simple",
+    place_on = {"cw_core:sand"},
+    sidelen = 16,
+    fill_ratio = 0.01,
+    decoration = "cw_core:cactus",
+    biomes = {"cw_biomes:desert"},
+})
+
+-- DESERT DEAD BUSH -----------------------------------------------------
+deco({
+    name = "cw_biomes:dead_bush",
+    deco_type = "simple",
+    place_on = {"cw_core:sand"},
+    sidelen = 16,
+    fill_ratio = 0.02,
+    decoration = "cw_core:dead_bush",
+    biomes = {"cw_biomes:desert"},
+})
+
+-- MOUNTAIN MEADOW FLOWERS ----------------------------------------------
+deco({
+    name = "cw_biomes:flowers_meadow",
+    deco_type = "simple",
+    place_on = {"cw_core:grass_block"},
+    sidelen = 16,
+    fill_ratio = 0.03,
+    decoration = {"cw_core:flower_daisy", "cw_core:flower_bluebell"},
+    biomes = {"cw_biomes:mountain_meadow"},
 })
