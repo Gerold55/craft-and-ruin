@@ -5,23 +5,26 @@ local function is_creative(name)
     return minetest.check_player_privs(name, {creative = true})
 end
 
-------------------------------------------------------------
--- 1. CREATIVE REACH (Survival stays normal)
-------------------------------------------------------------
--- NORMAL SURVIVAL HAND (Minecraft-like)
-minetest.register_item(":", {
-    type = "none",
-    wield_image = "cw_hand.png",
-    wield_scale = {x=1, y=1, z=1},
-    range = 4.0,
-    tool_capabilities = {
-        full_punch_interval = 1.0,
-        max_drop_level = 0,
-        groupcaps = {
-            crumbly = {times={[1]=3.0, [2]=1.5, [3]=0.7}, uses=0, maxlevel=1},
-        }
+local creative_caps = {
+    full_punch_interval = 0.0,
+    max_drop_level = 3,
+    groupcaps = {
+        crumbly = {times={[1]=0.0, [2]=0.0, [3]=0.0}, uses=0, maxlevel=3},
+        cracky  = {times={[1]=0.0, [2]=0.0, [3]=0.0}, uses=0, maxlevel=3},
+        choppy  = {times={[1]=0.0, [2]=0.0, [3]=0.0}, uses=0, maxlevel=3},
+        snappy  = {times={[1]=0.0, [2]=0.0, [3]=0.0}, uses=0, maxlevel=3},
     }
-})
+}
+
+minetest.register_on_joinplayer(function(player)
+    local name = player:get_player_name()
+
+    if minetest.check_player_privs(name, {creative = true}) then
+        player:set_properties({tool_capabilities = creative_caps})
+    else
+        player:set_properties({tool_capabilities = nil}) -- use default hand
+    end
+end)
 
 -- Apply creative reach dynamically
 minetest.register_on_joinplayer(function(player)

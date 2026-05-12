@@ -44,6 +44,24 @@ core.register_on_newplayer(function(player)
     player:set_pos({x=0,y=6,z=0})
 end)
 
+------------------------------------------------------------
+-- 1. CREATIVE REACH (Survival stays normal)
+------------------------------------------------------------
+-- NORMAL SURVIVAL HAND (Minecraft-like)
+minetest.register_item(":", {
+    type = "none",
+    wield_image = "cw_hand.png",
+    wield_scale = {x=1, y=1, z=1},
+    range = 4.0,
+    tool_capabilities = {
+        full_punch_interval = 1.0,
+        max_drop_level = 0,
+        groupcaps = {
+            crumbly = {times={[1]=3.0, [2]=1.5, [3]=0.7}, uses=0, maxlevel=1},
+        }
+    }
+})
+
 dofile(modpath .. "/nodes.lua")
 dofile(modpath .. "/nodes_building.lua")
 dofile(modpath .. "/torch.lua")
