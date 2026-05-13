@@ -62,6 +62,7 @@ minetest.register_item(":", {
     }
 })
 
+dofile(modpath .. "/hand_mode.lua")
 dofile(modpath .. "/nodes.lua")
 dofile(modpath .. "/nodes_building.lua")
 dofile(modpath .. "/torch.lua")
