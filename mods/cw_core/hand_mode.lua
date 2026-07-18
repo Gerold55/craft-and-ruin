@@ -83,20 +83,20 @@ local function apply_tool_mode(player)
 end
 
 -----------------------------
--- HOOKS
+-- HOOKS (Broken code above so lets not load this)   TEMPORARY UNTIL IM TOLD WHAT THIS IS FOR
 -----------------------------
-minetest.register_on_joinplayer(function(player)
-    apply_hand_mode(player)
-    apply_tool_mode(player)
-end)
+---minetest.register_on_joinplayer(function(player)
+---    apply_hand_mode(player)
+---    apply_tool_mode(player)
+---end)
 
-minetest.register_on_player_inventory_action(function(player)
-    apply_tool_mode(player)
-end)
+---minetest.register_on_player_inventory_action(function(player)
+---    apply_tool_mode(player)
+---end)
 
-minetest.register_on_player_receive_fields(function(player, formname, fields)
-    if fields.creative_toggle then
-        apply_hand_mode(player)
-        apply_tool_mode(player)
-    end
-end)
+---minetest.register_on_player_receive_fields(function(player, formname, fields)
+---    if fields.creative_toggle then
+---        apply_hand_mode(player)
+---        apply_tool_mode(player)
+---    end
+---end)
