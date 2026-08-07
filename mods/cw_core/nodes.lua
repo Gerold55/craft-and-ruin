@@ -1170,6 +1170,95 @@ local function _snd_stone()
       or {}
 end
 
+minetest.register_node("cw_core:lava_source", {
+    description = "Lava Source",
+    drawtype = "liquid",
+    tiles = {
+        {
+            name = "cw_lava_source_animated.png",
+            animation = {
+                type = "vertical_frames",
+                aspect_w = 16,
+                aspect_h = 16,
+                length = 3.0,
+            },
+        },
+    },
+    special_tiles = {
+        {
+            name = "cw_lava_source_animated.png",
+            animation = {
+                type = "vertical_frames",
+                aspect_w = 16,
+                aspect_h = 16,
+                length = 3.0,
+            },
+            backface_culling = false,
+        },
+    },
+
+    paramtype = "light",
+    light_source = 13,
+    walkable = false,
+    pointable = false,
+    diggable = false,
+    buildable_to = true,
+
+    damage_per_second = 4,
+    liquidtype = "source",
+    liquid_alternative_flowing = "cw_core:lava_flowing",
+    liquid_alternative_source = "cw_core:lava_source",
+    liquid_viscosity = 7,
+    liquid_renewable = false,
+
+    groups = {lava = 1, liquid = 2, hot = 1, igniter = 1},
+})
+
+minetest.register_node("cw_core:lava_flowing", {
+    description = "Flowing Lava",
+    drawtype = "flowingliquid",
+
+    tiles = {"cw_lava.png"},
+    special_tiles = {
+        {
+            name = "cw_lava_flowing_animated.png",
+            animation = {
+                type = "vertical_frames",
+                aspect_w = 16,
+                aspect_h = 16,
+                length = 3.0,
+            },
+            backface_culling = false,
+        },
+        {
+            name = "cw_lava_flowing_animated.png",
+            animation = {
+                type = "vertical_frames",
+                aspect_w = 16,
+                aspect_h = 16,
+                length = 3.0,
+            },
+            backface_culling = true,
+        },
+    },
+
+    paramtype = "light",
+    light_source = 13,
+    walkable = false,
+    pointable = false,
+    diggable = false,
+    buildable_to = true,
+
+    damage_per_second = 4,
+    liquidtype = "flowing",
+    liquid_alternative_flowing = "cw_core:lava_flowing",
+    liquid_alternative_source = "cw_core:lava_source",
+    liquid_viscosity = 7,
+    liquid_renewable = false,
+
+    groups = {lava = 1, liquid = 2, hot = 1, igniter = 1, not_in_creative_inventory = 1},
+})
+
 -- -----------------------
 -- GRAVEL
 -- -----------------------
