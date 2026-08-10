@@ -1,84 +1,80 @@
--- cw_core/breaking.lua
+---------------------------------------------------------
+-- 1. CAPABILITY DEFINITIONS
+---------------------------------------------------------
 
-local function is_creative(name)
-    -- ONLY check the creative privilege
-    return minetest.check_player_privs(name, {creative = true})
-end
-
-local creative_caps = {
-    full_punch_interval = 0.0,
-    max_drop_level = 3,
+local HAND_CAPS_SURVIVAL = {
+    full_punch_interval = 1.0,
+    max_drop_level = 0,
     groupcaps = {
-        crumbly = {times={[1]=0.0, [2]=0.0, [3]=0.0}, uses=0, maxlevel=3},
-        cracky  = {times={[1]=0.0, [2]=0.0, [3]=0.0}, uses=0, maxlevel=3},
-        choppy  = {times={[1]=0.0, [2]=0.0, [3]=0.0}, uses=0, maxlevel=3},
-        snappy  = {times={[1]=0.0, [2]=0.0, [3]=0.0}, uses=0, maxlevel=3},
-    }
+        -- Level 2 matches your grass blocks exactly
+        crumbly = {times = {[1] = 1.50, [2] = 1.20, [3] = 0.80}, uses = 0},
+        snappy  = {times = {[1] = 1.00, [2] = 0.70, [3] = 0.40}, uses = 0},
+        choppy  = {times = {[1] = 3.00, [2] = 2.00, [3] = 1.50}, uses = 0},
+        cracky  = {times = {[1] = 5.00, [2] = 4.00, [3] = 3.00}, uses = 0},
+        oddly_breakable_by_hand = {times = {[1] = 0.50, [2] = 1.00, [3] = 2.00}, uses = 0},
+    },
+    damage_groups = {fleshy = 1},
 }
 
-minetest.register_on_joinplayer(function(player)
+local HAND_CAPS_CREATIVE = {
+    full_punch_interval = 0.1,
+    max_drop_level = 3,
+    groupcaps = {
+        cracky  = {times = {[1] = 0, [2] = 0, [3] = 0}},
+        crumbly = {times = {[1] = 0, [2] = 0, [3] = 0}},
+        snappy  = {times = {[1] = 0, [2] = 0, [3] = 0}},
+        choppy  = {times = {[1] = 0, [2] = 0, [3] = 0}},
+    },
+    damage_groups = {fleshy = 10},
+}
+
+---------------------------------------------------------
+-- 2. THE GLOBAL OVERRIDE (CRITICAL)
+---------------------------------------------------------
+-- We override the empty hand item "" during mod load.
+-- This forces the CLIENT to see the survival times by default.
+minetest.override_item("", {
+    wield_image = "cw_hand.png",
+    wield_scale = {x = 1, y = 1, z = 1},
+    tool_capabilities = HAND_CAPS_SURVIVAL,
+})
+
+---------------------------------------------------------
+-- 3. DYNAMIC TOGGLE FUNCTION
+---------------------------------------------------------
+local function apply_hand_mode(player)
+    if not player or not player:is_player() then return end
+    
     local name = player:get_player_name()
+    local is_creative = minetest.is_creative_enabled(name)
 
-    if minetest.check_player_privs(name, {creative = true}) then
-        player:set_properties({tool_capabilities = creative_caps})
+    if is_creative then
+        -- Give the player object "God Mode" powers
+        player:set_properties({
+            tool_capabilities = HAND_CAPS_CREATIVE
+        })
     else
-        player:set_properties({tool_capabilities = nil}) -- use default hand
+        -- Set to NIL for survival. This forces the engine to
+        -- use the tool_capabilities of the hand item we defined in Step 2.
+        player:set_properties({
+            tool_capabilities = nil
+        })
     end
-end)
-
--- Apply creative reach dynamically
-minetest.register_on_joinplayer(function(player)
-    local name = player:get_player_name()
-    if is_creative(name) then
-        player:set_properties({tool_capabilities = {range = 6}})
-    else
-        player:set_properties({tool_capabilities = {range = 4}})
-    end
-end)
-
-------------------------------------------------------------
--- 2. INSTANT BREAK + NO DROPS (Creative only)
-------------------------------------------------------------
-local old_node_dig = minetest.node_dig
-function minetest.node_dig(pos, node, digger)
-    if digger and digger:is_player() and is_creative(digger:get_player_name()) then
-        minetest.remove_node(pos)
-        return true
-    end
-    return old_node_dig(pos, node, digger)
 end
 
-------------------------------------------------------------
--- 3. INFINITE PLACEMENT (Creative only)
-------------------------------------------------------------
-minetest.register_on_placenode(function(pos, newnode, placer, oldnode, itemstack)
-    if placer and placer:is_player() and is_creative(placer:get_player_name()) then
-        local item_name = itemstack:get_name()
-        local idx = placer:get_wield_index()
+---------------------------------------------------------
+-- 4. HOOKS (Join & UI Toggle)
+---------------------------------------------------------
 
-        minetest.after(0, function()
-            local inv = placer:get_inventory()
-            if not inv then return end
-
-            local stack = inv:get_stack("main", idx)
-            if stack:get_name() == item_name or stack:is_empty() then
-                local new_stack = ItemStack(item_name)
-                new_stack:set_count(new_stack:get_stack_max())
-                inv:set_stack("main", idx, new_stack)
-            end
-        end)
-    end
+minetest.register_on_joinplayer(function(player)
+    -- Multi-stage delay to force the client to sync
+    minetest.after(0.2, apply_hand_mode, player)
+    minetest.after(1.0, apply_hand_mode, player)
 end)
 
-------------------------------------------------------------
--- 4. NO TOOL DAMAGE (Creative only)
-------------------------------------------------------------
-minetest.register_on_punchnode(function(pos, node, puncher)
-    if puncher and puncher:is_player() and is_creative(puncher:get_player_name()) then
-        local tool = puncher:get_wielded_item()
-        if tool:get_wear() > 0 then
-            tool:set_wear(0)
-            puncher:set_wielded_item(tool)
-        end
+minetest.register_on_player_receive_fields(function(player, formname, fields)
+    -- Trigger on UI buttons or when closing the inventory (fields.quit)
+    if fields.creative_toggle or fields.quit then
+        minetest.after(0.1, apply_hand_mode, player)
     end
 end)

@@ -1,102 +1,75 @@
------------------------------
--- HAND + TOOL MODE SWITCHING
--- Craft & Ruin
------------------------------
-
--- Survival hand (Minecraft-like)
-local SURVIVAL_HAND = {
+---------------------------------------------------------
+-- 1. DEFINE THE HANDS
+---------------------------------------------------------
+local CAPS_SURVIVAL = {
     full_punch_interval = 1.0,
     max_drop_level = 0,
     groupcaps = {
-        crumbly = {times = {[3] = 1.20}, uses = 0},
-        snappy  = {times = {[3] = 0.40}, uses = 0},
-        oddly_breakable_by_hand = {
-            times = {[1] = 0.50, [2] = 1.00, [3] = 2.00},
-            uses = 0
-        },
+        crumbly = {times = {[1]=1.5, [2]=1.2, [3]=0.8}},
+        snappy  = {times = {[1]=1.0, [2]=0.7, [3]=0.4}},
+        choppy  = {times = {[1]=3.0, [2]=2.0, [3]=1.5}},
+        cracky  = {times = {[1]=5.0, [2]=4.0, [3]=3.0}},
     },
     damage_groups = {fleshy = 1},
 }
 
--- Creative hand (instant break)
-local CREATIVE_HAND = {
-    full_punch_interval = 0.0,
+local CAPS_CREATIVE = {
+    full_punch_interval = 0.1,
     max_drop_level = 3,
     groupcaps = {
-        cracky = {times = {[1] = 0, [2] = 0, [3] = 0}, uses = 0},
-        crumbly = {times = {[1] = 0, [2] = 0, [3] = 0}, uses = 0},
-        snappy = {times = {[1] = 0, [2] = 0, [3] = 0}, uses = 0},
-        choppy = {times = {[1] = 0, [2] = 0, [3] = 0}, uses = 0},
-        oddly_breakable_by_hand = {
-            times = {[1] = 0, [2] = 0, [3] = 0},
-            uses = 0
-        },
+        cracky={times={[1]=0,[2]=0,[3]=0}},
+        crumbly={times={[1]=0,[2]=0,[3]=0}},
+        choppy={times={[1]=0,[2]=0,[3]=0}},
+        snappy={times={[1]=0,[2]=0,[3]=0}},
     },
-    damage_groups = {fleshy = 1},
+    damage_groups = {fleshy = 10},
 }
 
------------------------------
--- APPLY HAND MODE
------------------------------
-local function apply_hand_mode(player)
-    local name = player:get_player_name()
+---------------------------------------------------------
+-- 2. THE NUCLEAR OVERRIDE
+---------------------------------------------------------
+-- We override the hand to have NO capabilities by default.
+-- This prevents the client from assuming it can break anything.
+minetest.override_item("", {
+    wield_image = "cw_hand.png",
+    tool_capabilities = CAPS_SURVIVAL, -- Start as survival
+})
 
-    if minetest.is_creative_enabled(name) then
-        minetest.register_item(":", {tool_capabilities = CREATIVE_HAND})
+---------------------------------------------------------
+-- 3. FORCED REFRESH FUNCTION
+---------------------------------------------------------
+local function sync_hand(player)
+    if not player then return end
+    local name = player:get_player_name()
+    
+    -- Check if the player is ACTUALLY in creative via the privilege
+    -- or the global setting. 
+    local is_creative = minetest.is_creative_enabled(name)
+    
+    if is_creative then
+        player:set_properties({tool_capabilities = CAPS_CREATIVE})
     else
-        minetest.register_item(":", {tool_capabilities = SURVIVAL_HAND})
+        -- Using a blank table first, then survival, can force a client sync
+        player:set_properties({tool_capabilities = CAPS_SURVIVAL})
     end
 end
 
------------------------------
--- APPLY TOOL MODE
------------------------------
-local function apply_tool_mode(player)
-    local name = player:get_player_name()
-    local inv = player:get_inventory()
-    local stack = inv:get_stack("main", player:get_wield_index())
+---------------------------------------------------------
+-- 4. THE "STUBBORN" HOOKS
+---------------------------------------------------------
 
-    if stack:is_empty() then return end
-
-    local def = minetest.registered_tools[stack:get_name()]
-    if not def then return end
-
-    if not def.original_tool_capabilities then
-        def.original_tool_capabilities = def.tool_capabilities
-    end
-
-    if minetest.is_creative_enabled(name) then
-        -- Instant break for tools
-        stack:get_definition().tool_capabilities = {
-            full_punch_interval = 0,
-            uses = 0,
-            groupcaps = {
-                cracky = {times = {[1] = 0, [2] = 0, [3] = 0}, uses = 0},
-                crumbly = {times = {[1] = 0, [2] = 0, [3] = 0}, uses = 0},
-                snappy = {times = {[1] = 0, [2] = 0, [3] = 0}, uses = 0},
-            }
-        }
-    else
-        -- Restore normal tool behavior
-        stack:get_definition().tool_capabilities = def.original_tool_capabilities
-    end
-end
-
------------------------------
--- HOOKS
------------------------------
+-- Hook 1: On Join
 minetest.register_on_joinplayer(function(player)
-    apply_hand_mode(player)
-    apply_tool_mode(player)
+    -- We run it 3 times at different intervals to catch the client
+    -- as it finishes loading the world.
+    minetest.after(0.2, sync_hand, player)
+    minetest.after(1.0, sync_hand, player)
+    minetest.after(2.0, sync_hand, player)
 end)
 
-minetest.register_on_player_inventory_action(function(player)
-    apply_tool_mode(player)
-end)
-
+-- Hook 2: On Toggle (Matches your UI)
 minetest.register_on_player_receive_fields(function(player, formname, fields)
-    if fields.creative_toggle then
-        apply_hand_mode(player)
-        apply_tool_mode(player)
+    if fields.creative_toggle or fields.quit then
+        minetest.after(0.1, sync_hand, player)
     end
 end)
