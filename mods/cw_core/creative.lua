@@ -1,3 +1,7 @@
+-- =========================================================
+-- CRAFT & RUIN — HAND CAPABILITIES & CREATIVE UTILITIES
+-- =========================================================
+
 ---------------------------------------------------------
 -- 1. CAPABILITY DEFINITIONS
 ---------------------------------------------------------
@@ -40,8 +44,9 @@ minetest.override_item("", {
 })
 
 ---------------------------------------------------------
--- 3. DYNAMIC TOGGLE FUNCTION
+-- 3. DYNAMIC TOGGLE & INFINITE STACK FUNCTIONS
 ---------------------------------------------------------
+
 local function apply_hand_mode(player)
     if not player or not player:is_player() then return end
     
@@ -62,8 +67,25 @@ local function apply_hand_mode(player)
     end
 end
 
+-- Function to wrap node placement with infinite stack logic for creative players
+local function infinite_place_node(itemstack, placer, pointed_thing)
+    -- Perform normal node placement
+    local ret = minetest.item_place(itemstack, placer, pointed_thing)
+    
+    -- Check if the player is in creative mode
+    if placer and placer:is_player() then
+        local player_name = placer:get_player_name()
+        if minetest.is_creative_enabled(player_name) then
+            -- Keep the item stack count at maximum (or prevent decrement)
+            itemstack:set_count(itemstack:get_definition().stack_max or 99)
+        end
+    end
+    
+    return ret
+end
+
 ---------------------------------------------------------
--- 4. HOOKS (Join & UI Toggle)
+-- 4. HOOKS (Join, UI Toggle & Global Callbacks)
 ---------------------------------------------------------
 
 minetest.register_on_joinplayer(function(player)

@@ -89,19 +89,6 @@ core.register_node("cw_core:sandstone", {
   sounds = node_sound_stone(),
 })
 
-core.register_node("cw_core:mountain_grass", {
-  description = S("Stone"),
-  tiles = {
-    "cw_stone.png",
-    "cw_stone.png",
-    "cw_stone.png^cw_grass_side_plains_overlay.png",
-},
-  drop = "cw_core:cobble",
-  is_ground_content = true,
-  groups = {cracky=3, stone=1},
-  sounds = node_sound_stone(),
-})
-
 core.register_node("cw_core:cobble", {
   description = S("Cobblestone"),
   tiles = {"cw_cobblestone.png"},
@@ -121,7 +108,7 @@ core.register_node("cw_core:basalt", {
 
 core.register_node("cw_core:basalt_cobble", {
   description = S("Basalt Cobble"),
-  tiles = {"cw_cobblestone.png"},
+  tiles = {"cw_basalt_cobble.png"},
   is_ground_content = true,
   groups = {cracky=3, stone=1},
   sounds = node_sound_stone(),
@@ -439,7 +426,7 @@ core.register_node("cw_core:planks_spruce", {
 
 core.register_node("cw_core:log_jungle", {
   description = S("Jungle Log"),
-  tiles = {"cw_jungle_log_top.png","cw_jungle_log_top.png","cw_jungle_log.png"},
+  tiles = {"log_jungle_top.png","log_jungle_top.png","log_jungle.png"},
   paramtype2 = "facedir",
   groups = {tree=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
@@ -448,7 +435,7 @@ core.register_node("cw_core:log_jungle", {
 
 core.register_node("cw_core:planks_jungle", {
   description = S("Jungle Planks"),
-  tiles = {"cw_jungle_planks.png"},
+  tiles = {"planks_jungle.png"},
   paramtype2 = "facedir",
   groups = {wood=1, choppy=2, oddly_breakable_by_hand=1, flammable=2},
   sounds = default and default.node_sound_wood_defaults() or node_sound_wood(),
@@ -683,7 +670,7 @@ core.register_node("cw_core:leaves_jungle", {
   description = "Jungle Leaves",
   drawtype = "allfaces_optional",
   waving = 1,
-  tiles = { "cw_jungle_leaves.png" }, -- neutral gray texture recommended
+  tiles = { "leaves_jungle.png" }, -- neutral gray texture recommended
   use_texture_alpha = "clip",
   paramtype  = "light",
   paramtype2 = "color",
