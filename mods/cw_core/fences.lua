@@ -1,167 +1,288 @@
 local MOD = "cw_core"
 
 local wood_types = {
-    {name = "oak",    desc = "Oak",    tile = "cw_log_oak.png"},
-    {name = "cherry", desc = "Cherry", tile = "cw_log_cherry.png"},
-    {name = "birch",  desc = "Birch",  tile = "cw_log_birch.png"},
-    {name = "spruce", desc = "Spruce", tile = "cw_log_spruce.png"},
+    {name = "oak",    desc = "Oak",    tile = "cw_oak_log.png"},
+    {name = "cherry", desc = "Cherry", tile = "cherry_log.png"},
+    {name = "birch",  desc = "Birch",  tile = "cw_birch_log.png"},
+    {name = "spruce", desc = "Spruce", tile = "cw_spruce_log.png"},
+    {name = "jungle", desc = "Jungle", tile = "log_jungle.png"},
 }
 
+-- FENCE GEOMETRY (rails raised by 1 pixel = +0.0625)
+local function mc_fence_boxes(connect)
+    local boxes = {}
+
+    -- Center post
+    if connect.north or connect.south or connect.east or connect.west or connect.alone then
+        table.insert(boxes, {
+            -0.125, -0.5,   -0.125,
+             0.125,  0.5,    0.125
+        })
+    end
+
+    -- Rails (raised by 1px)
+    if connect.north then
+        table.insert(boxes, {-0.0625, -0.125, -0.5, 0.0625, 0.0625, -0.125})
+        table.insert(boxes, {-0.0625,  0.1875, -0.5, 0.0625, 0.375,  -0.125})
+    end
+    if connect.south then
+        table.insert(boxes, {-0.0625, -0.125, 0.125, 0.0625, 0.0625, 0.5})
+        table.insert(boxes, {-0.0625,  0.1875, 0.125, 0.0625, 0.375,  0.5})
+    end
+    if connect.east then
+        table.insert(boxes, {0.125, -0.125, -0.0625, 0.5, 0.0625, 0.0625})
+        table.insert(boxes, {0.125,  0.1875, -0.0625, 0.5, 0.375,  0.0625})
+    end
+    if connect.west then
+        table.insert(boxes, {-0.5, -0.125, -0.0625, -0.125, 0.0625, 0.0625})
+        table.insert(boxes, {-0.5,  0.1875, -0.0625, -0.125, 0.375,  0.0625})
+    end
+
+    return boxes
+end
+
+------------------------------------------------------------
+-- 1. WOOD FENCES
+------------------------------------------------------------
+
 for _, wood in ipairs(wood_types) do
-    core.register_node(MOD .. ":fence_" .. wood.name, {
-        description = wood.desc .. " Craft & Ruin Fence",
+    minetest.register_node(MOD .. ":fence_" .. wood.name, {
+        description = wood.desc .. " Fence",
         drawtype = "nodebox",
         tiles = {wood.tile},
+
+        inventory_image = "cw_fence_" .. wood.name .. "_item.png",
+        wield_image     = "cw_fence_" .. wood.name .. "_item.png",
+
         paramtype = "light",
-        is_ground_content = false,
-        -- This group allows it to connect to other fences and gates
-        groups = {choppy = 2, oddly_breakable_by_hand = 2, flammable = 2, fence = 1},
-        connects_to = {"group:fence", "group:gate", "group:wood", "group:stone"},
+        groups = {choppy = 2, flammable = 2, fence = 1},
+        connects_to = {"group:fence", "group:gate", "group:solid"},
 
         node_box = {
             type = "connected",
-            -- 1. THE CENTRAL POST (Chunky Hytale Style)
-            fixed = {
-                {-0.2, -0.5, -0.2, 0.2, 0.5, 0.2}, -- Main Post
-                {-0.25, 0.5, -0.25, 0.25, 0.6, 0.25}, -- Post Cap
-            },
-            -- 2. EXTERIOR RAILS (Connectors)
-            -- These are moved to the edge (0.2 to 0.3) so they sit on the FACE of the post
-            connect_front = {
-                {-0.2,  0.1, -0.5, 0.2,  0.25, -0.2}, -- Top Rail
-                {-0.2, -0.3, -0.5, 0.2, -0.15, -0.2}, -- Bottom Rail
-            },
-            connect_back = {
-                {-0.2,  0.1,  0.2, 0.2,  0.25,  0.5},
-                {-0.2, -0.3,  0.2, 0.2, -0.15,  0.5},
-            },
-            connect_left = {
-                {-0.5,  0.1, -0.2, -0.2,  0.25, 0.2},
-                {-0.5, -0.3, -0.2, -0.2, -0.15, 0.2},
-            },
-            connect_right = {
-                {0.2,  0.1, -0.2,  0.5,  0.25, 0.2},
-                {0.2, -0.3, -0.2,  0.5, -0.15, 0.2},
-            },
+            fixed = mc_fence_boxes({alone = true}),
+            connect_front = mc_fence_boxes({north = true}),
+            connect_back  = mc_fence_boxes({south = true}),
+            connect_left  = mc_fence_boxes({west = true}),
+            connect_right = mc_fence_boxes({east = true}),
         },
-        -- Minecraft-style 1.5 block collision height
+
         collision_box = {
             type = "fixed",
-            fixed = {-0.5, -0.5, -0.5, 0.5, 1.0, 0.5},
+            fixed = {
+                -0.5, -0.5, -0.5,
+                 0.5,  1.5,  0.5
+            }
         },
     })
+end
 
-    -- THE COMPANION GATE
-    core.register_node(MOD .. ":gate_" .. wood.name .. "_closed", {
-        description = wood.desc .. " Craft & Ruin Gate",
+------------------------------------------------------------
+-- 2. GATES (Minecraft Bedrock geometry)
+------------------------------------------------------------
+
+local gate_closed_box = {
+    type = "fixed",
+    fixed = {
+        {-0.5, -0.1875, -0.0625, -0.375, 0.5,    0.0625},
+        {0.375, -0.1875, -0.0625, 0.5,    0.5,    0.0625},
+        {-0.375, 0.25,   -0.0625, 0.375,  0.4375, 0.0625},
+        {-0.125, 0.0625, -0.0625, 0.125,  0.25,   0.0625},
+        {-0.375, -0.125, -0.0625, 0.375,  0.0625, 0.0625},
+    }
+}
+
+local gate_open_box = {
+    type = "fixed",
+    fixed = {
+        {-0.5,   -0.1875, -0.0625, -0.375, 0.5,    0.0625},
+        {0.375,  -0.1875, -0.0625, 0.5,    0.5,    0.0625},
+
+        {-0.5,   0.25,   -0.4375, -0.375, 0.4375, -0.0625},
+        {-0.5,   0.0625, -0.4375, -0.375, 0.25,   -0.3125},
+        {-0.5,  -0.125,  -0.4375, -0.375, 0.0625, -0.0625},
+
+        {0.375, -0.125,  -0.4375, 0.5,    0.0625, -0.0625},
+        {0.375,  0.0625, -0.4375, 0.5,    0.25,   -0.3125},
+        {0.375,  0.25,   -0.4375, 0.5,    0.4375, -0.0625},
+    }
+}
+
+for _, wood in ipairs(wood_types) do
+    local closed = MOD .. ":gate_" .. wood.name .. "_closed"
+    local open   = MOD .. ":gate_" .. wood.name .. "_open"
+
+    -- CLOSED GATE
+    minetest.register_node(closed, {
+        description = wood.desc .. " Fence Gate",
         drawtype = "nodebox",
-        tiles = {wood.tile, wood.tile, wood.tile .. "^[colorize:#000:50"}, -- Darker hinges
+        tiles = {wood.tile},
+
+        inventory_image = "cw_gate_" .. wood.name .. "_item.png",
+        wield_image     = "cw_gate_" .. wood.name .. "_item.png",
+
         paramtype = "light",
         paramtype2 = "facedir",
+
         groups = {choppy = 2, gate = 1},
-        node_box = {
+        connects_to = {"group:fence", "group:solid"},
+
+        node_box = gate_closed_box,
+
+        collision_box = {
             type = "fixed",
             fixed = {
-                {-0.5, -0.5, -0.1, -0.3, 0.6, 0.1}, -- Hinge Post
-                { 0.3, -0.5, -0.1,  0.5, 0.6, 0.1}, -- Latch Post
-                {-0.3,  0.1, -0.2,  0.3, 0.25, -0.1}, -- Top Rail (Exterior)
-                {-0.3, -0.3, -0.2,  0.3, -0.15, -0.1}, -- Bottom Rail (Exterior)
-                {-0.2, -0.1, -0.15, 0.2, 0.1, -0.12}, -- Brace
-            },
+                -0.5, -0.5, -0.5,
+                 0.5,  1.5,  0.5
+            }
         },
-        on_rightclick = function(pos, node, clicker)
-            core.set_node(pos, {name = MOD .. ":gate_" .. wood.name .. "_open", param2 = node.param2})
-            core.sound_play("default_gate_open", {pos = pos, gain = 0.5})
+
+        on_rightclick = function(pos, node)
+            minetest.set_node(pos, {name = open, param2 = node.param2})
         end,
     })
 
-    -- OPEN GATE (Non-walkable)
-    core.register_node(MOD .. ":gate_" .. wood.name .. "_open", {
+    -- OPEN GATE
+    minetest.register_node(open, {
         drawtype = "nodebox",
         tiles = {wood.tile},
+
+        inventory_image = "cw_gate_" .. wood.name .. "_item.png",
+        wield_image     = "cw_gate_" .. wood.name .. "_item.png",
+
         paramtype = "light",
         paramtype2 = "facedir",
         walkable = false,
+        drop = closed,
+
         groups = {choppy = 2, gate = 1, not_in_creative_inventory = 1},
-        drop = MOD .. ":gate_" .. wood.name .. "_closed",
-        node_box = {
+        connects_to = {"group:fence", "group:solid"},
+
+        node_box = gate_open_box,
+
+        collision_box = {
             type = "fixed",
-            fixed = {
-                {-0.5, -0.5, -0.1, -0.3, 0.6, 0.1}, -- Post remains
-                {-0.5, -0.5, 0.1, -0.4, 0.6, 0.9}, -- Gate panel swings back
-            },
+            fixed = {}
         },
-        on_rightclick = function(pos, node, clicker)
-            core.set_node(pos, {name = MOD .. ":gate_" .. wood.name .. "_closed", param2 = node.param2})
-            core.sound_play("default_gate_close", {pos = pos, gain = 0.5})
+
+        on_rightclick = function(pos, node)
+            minetest.set_node(pos, {name = closed, param2 = node.param2})
         end,
     })
 end
 
+------------------------------------------------------------
+-- 3. STRAIGHT FENCE (hidden)
+------------------------------------------------------------
+
 minetest.register_node("cw_core:fence_straight", {
     description = "Straight Fence",
     drawtype = "nodebox",
-    tiles = {
-        "cw_core_fence_top.png",
-        "cw_core_fence_bottom.png",
-        "cw_core_fence_side.png"
-    },
+    tiles = {"cw_core_fence_side.png"},
+
+    inventory_image = "cw_fence_post_item.png",
+    wield_image     = "cw_fence_post_item.png",
+
     paramtype = "light",
-    sunlight_propagates = true,
-    walkable = true,
-    groups = {choppy = 2, oddly_breakable_by_hand = 2, flammable = 2},
+
+    groups = {choppy = 2, flammable = 2, fence = 1, not_in_creative_inventory = 1},
+    connects_to = {"group:fence", "group:gate", "group:solid"},
 
     node_box = {
         type = "fixed",
         fixed = {
-            -- Post
-            {-0.1875, -0.5,   -0.0625, 0.1875, 0.5,    0.3125},
+            {-0.125, -0.5, -0.125, 0.125, 0.5, 0.125},
 
-            -- Upper rail
-            {-0.5,     0.0625, -0.1875, 0.5,    0.4375, -0.0625},
-
-            -- Lower rail
-            {-0.5,    -0.3125, -0.1875, 0.5,   -0.0625, -0.0625},
+            {-0.0625, -0.125, -0.5, 0.0625, 0.0625, 0.5},
+            {-0.0625,  0.1875, -0.5, 0.0625, 0.375,  0.5},
         }
     },
 
-    selection_box = {
+    collision_box = {
         type = "fixed",
-        fixed = {-0.5, -0.5, -0.1875, 0.5, 0.5, 0.3125},
+        fixed = {
+            -0.5, -0.5, -0.5,
+             0.5,  1.5,  0.5
+        }
     },
 })
+
+------------------------------------------------------------
+-- 4. CORNER FENCE (hidden)
+------------------------------------------------------------
 
 minetest.register_node("cw_core:fence_corner", {
     description = "Corner Fence",
     drawtype = "nodebox",
-    tiles = {
-        "cw_core_fence_top.png",
-        "cw_core_fence_bottom.png",
-        "cw_core_fence_side.png"
-    },
+    tiles = {"cw_core_fence_side.png"},
+
+    inventory_image = "cw_fence_post_item.png",
+    wield_image     = "cw_fence_post_item.png",
+
     paramtype = "light",
-    sunlight_propagates = true,
-    walkable = true,
-    groups = {choppy = 2, oddly_breakable_by_hand = 2, flammable = 2},
+
+    groups = {choppy = 2, flammable = 2, fence = 1, not_in_creative_inventory = 1},
+    connects_to = {"group:fence", "group:gate", "group:solid"},
 
     node_box = {
         type = "fixed",
         fixed = {
-            -- Post (same as straight fence)
-            {-0.1875, -0.5, -0.0625, 0.1875, 0.5, 0.3125},
+            {-0.125, -0.5, -0.125, 0.125, 0.5, 0.125},
 
-            -- Rails along X (same as straight fence)
-            {-0.5, 0.0625, -0.1875, 0.0, 0.4375, -0.0625},   -- Upper X rail
-            {-0.5, -0.3125, -0.1875, 0.0, -0.0625, -0.0625}, -- Lower X rail
+            {-0.0625, -0.125, -0.5,    0.0625, 0.0625, -0.125},
+            {-0.0625,  0.1875, -0.5,    0.0625, 0.375,  -0.125},
 
-            -- Rails along Z (mirrored geometry)
-            {-0.1875, 0.0625, -0.5, -0.0625, 0.4375, 0.0},   -- Upper Z rail
-            {-0.1875, -0.3125, -0.5, -0.0625, -0.0625, 0.0}, -- Lower Z rail
-        },
+            {-0.5,    -0.125, -0.0625, -0.125, 0.0625,  0.0625},
+            {-0.5,     0.1875, -0.0625, -0.125, 0.375,   0.0625},
+        }
     },
 
-    selection_box = {
+    collision_box = {
         type = "fixed",
-        fixed = {-0.5, -0.5, -0.5, 0.1875, 0.5, 0.3125},
+        fixed = {
+            -0.5, -0.5, -0.5,
+             0.5,  1.5,  0.5
+        }
+    },
+})
+
+------------------------------------------------------------
+-- 5. SIDE CONNECTION FENCE (hidden)
+------------------------------------------------------------
+
+minetest.register_node("cw_core:fence_side", {
+    description = "Side Fence",
+    drawtype = "nodebox",
+    tiles = {"cw_core_fence_side.png"},
+
+    inventory_image = "cw_fence_post_item.png",
+    wield_image     = "cw_fence_post_item.png",
+
+    paramtype = "light",
+
+    groups = {choppy = 2, flammable = 2, fence = 1, not_in_creative_inventory = 1},
+    connects_to = {"group:fence", "group:gate", "group:solid"},
+
+    node_box = {
+        type = "fixed",
+        fixed = {
+            {-0.125, -0.5, -0.125, 0.125, 0.5, 0.125},
+
+            -- East rails (raised 1px)
+            {0.125, 0.3125, -0.0625, 0.5, 0.5,    0.0625},
+            {0.125, -0.0625, -0.0625, 0.5, 0.125, 0.0625},
+
+            -- South rails (raised 1px)
+            {-0.0625, -0.0625, 0.125, 0.0625, 0.125, 0.5},
+            {-0.0625, 0.3125,  0.125, 0.0625, 0.5,   0.5},
+        }
+    },
+
+    collision_box = {
+        type = "fixed",
+        fixed = {
+            -0.5, -0.5, -0.5,
+             0.5,  1.5,  0.5
+        }
     },
 })

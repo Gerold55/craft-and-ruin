@@ -98,7 +98,6 @@ local function _get_stack_info(pos)
     return bottom, height
 end
 
--- 3. NODE REGISTRATION
 core.register_node(MOD..":reeds_bottom", {
     description = S("Reeds"),
     drawtype = "plantlike",
@@ -111,6 +110,7 @@ core.register_node(MOD..":reeds_bottom", {
     walkable = false,
     buildable_to = true,
     groups = {snappy = 3, flammable = 2, attached_node = 1, reeds = 1},
+
     after_place_node = function(pos)
         if not _can_reeds_survive_at(pos) then
             core.remove_node(pos)
@@ -121,9 +121,19 @@ core.register_node(MOD..":reeds_bottom", {
             core.set_node(above, {name = MOD..":reeds_top"})
         end
     end,
+
+    -- Breaking the bottom breaks the entire stack above it
     after_destruct = function(pos)
-        local above = {x=pos.x, y=pos.y+1, z=pos.z}
-        if core.get_node(above).name == MOD..":reeds_top" then core.remove_node(above) end
+        local p = {x=pos.x, y=pos.y+1, z=pos.z}
+        while true do
+            local nm = core.get_node(p).name
+            if nm == MOD..":reeds_top" or nm == MOD..":reeds_bottom" then
+                core.remove_node(p)
+                p.y = p.y + 1
+            else
+                break
+            end
+        end
     end,
 })
 
@@ -137,13 +147,13 @@ core.register_node(MOD..":reeds_top", {
     walkable = false,
     buildable_to = true,
     groups = {snappy = 3, flammable = 2, not_in_creative_inventory = 1, reeds = 1},
+
+    -- Breaking the top should NOT break the bottom.
     after_destruct = function(pos)
-        local below = {x=pos.x, y=pos.y-1, z=pos.z}
-        if core.get_node(below).name == MOD..":reeds_bottom" then core.remove_node(below) end
+        -- intentionally empty
     end,
 })
 
--- 4. ABM GROWTH
 core.register_abm({
     label = "Reeds natural growth",
     nodenames = {MOD..":reeds_bottom"},
@@ -152,10 +162,23 @@ core.register_abm({
     chance = 10,
     action = function(pos)
         local bottom, height = _get_stack_info(pos)
-        if not _can_reeds_survive_at(bottom) then core.remove_node(bottom) return end
-        if height >= 3 then return end
-        local top_pos = {x=bottom.x, y=bottom.y + height - 1, z=bottom.z}
-        local new_top = {x=top_pos.x, y=top_pos.y+1, z=top_pos.z}
+
+        -- If the bottom can't survive, remove the whole plant
+        if not _can_reeds_survive_at(bottom) then
+            core.remove_node(bottom)
+            return
+        end
+
+        -- Grow up to 5 blocks tall (Minecraft sugarcane height)
+        if height >= 5 then
+            return
+        end
+
+        -- Find the top-most reed
+        local top_pos = {x = bottom.x, y = bottom.y + height - 1, z = bottom.z}
+        local new_top = {x = top_pos.x, y = top_pos.y + 1, z = top_pos.z}
+
+        -- Grow if air above
         if core.get_node(new_top).name == "air" then
             core.set_node(top_pos, {name = MOD..":reeds_bottom"})
             core.set_node(new_top, {name = MOD..":reeds_top"})

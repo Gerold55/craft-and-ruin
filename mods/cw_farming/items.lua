@@ -12,7 +12,7 @@ minetest.register_craftitem("cw_farming:seed_wheat", {
 
 minetest.register_craftitem("cw_farming:wheat_item", {
   description = S("Wheat"),
-  inventory_image = "cw_farming_wheat_item.png",
+  inventory_image = "farming_wheat.png",
 })
 
 minetest.register_craft({
@@ -33,7 +33,7 @@ minetest.register_craft({
 
 minetest.register_craftitem("cw_farming:bread", {
   description = S("Bread"),
-  inventory_image = "cw_farming_bread.png",
+  inventory_image = "food_bread.png",
   on_use = minetest.item_eat(5),
 })
 
@@ -56,17 +56,13 @@ minetest.register_craftitem("cw_farming:potato_baked", {
   on_use = minetest.item_eat(5),
 })
 
--- CARROT
-minetest.register_craftitem("cw_farming:seed_carrot", {
-  description = S("Carrot (Seed)"),
-  inventory_image = "cw_farming_seed_carrot.png",
-  groups = {seed=1, cw_seed=1},
-})
-
+-- CARROT ITEM (used for eating, drops, and planting)
 minetest.register_craftitem("cw_farming:carrot_item", {
   description = S("Carrot"),
-  inventory_image = "cw_farming_carrot_item.png",
+  inventory_image = "carrot.png",
   on_use = minetest.item_eat(3),
+  -- Optional: add a seed group here if your farming mod checks groups for plantable items
+  -- groups = { seed = 1, cw_seed = 1 },
 })
 
 
@@ -96,5 +92,5 @@ minetest.register_craftitem("cw_farming:melon", {
 
 minetest.register_craftitem("cw_farming:slice_melon", {
   description = S("Melon Slice"),
-  inventory_image = "farming_tomato.png",
+  inventory_image = "farming_melon_slice.png",
 })

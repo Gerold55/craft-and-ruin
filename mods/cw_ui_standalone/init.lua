@@ -41,17 +41,16 @@ local CATS = {
   {id = "all",  label = "ALL"}, --icon = "cw_icon_all.png"
   {id="blocks", label="BLOCKS"},
   {id="items",  label="ITEMS"},
-  {id="copper", label="COPPER"},
   {id="nature", label="NATURE"},
   {id="tools",  label="TOOLS"},
-  {id="misc",   label="MISC"},
+  {id="colored",   label="COLORED BLOCKS"},
 }
 
 -- Build CATALOG.all from the other categories (unique, stable order)
 local function rebuild_all_list()
   local seen, all = {}, {}
   -- choose the order you want them merged in:
-  local order = {"blocks","items","copper","nature","tools","misc"}
+  local order = {"blocks","items","nature","tools","colored"}
   for _,k in ipairs(order) do
     local t = CATALOG[k] or {}
     for i = 1, #t do
@@ -183,7 +182,7 @@ local CATALOG = {
   copper = {},
   nature = {},
   tools  = {},
-  misc   = {},
+  colored   = {},
   all    = {},   -- keep a slot for 'all' to avoid nil lookups
 }
 
@@ -194,7 +193,7 @@ local CATALOG = {
 local function rebuild_all_list()
   local seen, all = {}, {}
   -- choose merge order you want reflected in ALL:
-  local order = {"blocks","items","copper","nature","tools","misc"}
+  local order = {"blocks","items","nature","tools","colored"}
   for _, k in ipairs(order) do
     local t = CATALOG[k] or {}
     for i = 1, #t do
@@ -227,8 +226,18 @@ end
 
 local function is_nature(n, d)
   local g = d.groups or {}
-  if g.tree or g.leaves or g.sapling or g.flower or g.grass or g.soil then return true end
+
+  -- group-based nature detection
+  if g.tree or g.leaves or g.sapling or g.flower or g.grass or g.soil or g.mushroom or g.petals then
+    return true
+  end
+
+  -- name-based nature detection
   n = n:lower()
+  if n:find("mushroom",1,true) or n:find("fungus",1,true) or n:find("petal",1,true) then
+    return true
+  end
+
   return n:find("dirt",1,true) or n:find("sand",1,true) or n:find("water",1,true) or
          n:find("ice",1,true) or n:find("log",1,true) or n:find("leaf",1,true)
 end
@@ -249,20 +258,57 @@ end
 
 -- Now fill categories, then build ALL (AFTER fill + sort)
 minetest.register_on_mods_loaded(function()
+
+  -- list of color keywords to detect
+  local COLOR_WORDS = {
+    "red","blue","green","yellow","purple","cyan","magenta",
+    "orange","black","white","gray","grey","brown","pink"
+  }
+
+  -- helper: detect colored blocks (but NOT plants, NOT items)
+  local function is_colored_block(name, def)
+    -- must be a block
+    if not is_block(def) then return false end
+
+    -- must NOT be nature (plants, leaves, flowers, saplings, grass)
+    if is_nature(name, def) then return false end
+
+    -- check for color words in name
+    local lname = name:lower()
+    for _,word in ipairs(COLOR_WORDS) do
+      if lname:find(word, 1, true) then
+        return true
+      end
+    end
+
+    return false
+  end
+
+  -- main sorting loop
   for name, def in pairs(minetest.registered_items) do
     if show_ok(name, def) then
-      if is_wireish(name, def) then
+
+      -- NEW: colored block detection (items + plants excluded)
+      if is_colored_block(name, def) then
+        CATALOG.colored[#CATALOG.colored+1] = name
+
+      elseif is_wireish(name, def) then
         CATALOG.copper[#CATALOG.copper+1] = name
+
       elseif is_tool(def) then
         CATALOG.tools[#CATALOG.tools+1] = name
+
       elseif is_block(def) and is_nature(name, def) then
         CATALOG.nature[#CATALOG.nature+1] = name
+
       elseif is_block(def) then
         CATALOG.blocks[#CATALOG.blocks+1] = name
+
       elseif def.type == "craft" or def.type == "none" then
         CATALOG.items[#CATALOG.items+1] = name
+
       else
-        CATALOG.misc[#CATALOG.misc+1] = name
+        CATALOG.items[#CATALOG.items+1] = name
       end
     end
   end

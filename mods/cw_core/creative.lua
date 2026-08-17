@@ -1,5 +1,5 @@
 -- =========================================================
--- CRAFT & RUIN — HAND CAPABILITIES & CREATIVE UTILITIES
+-- CRAFT & RUIN — HAND CAPABILITIES & TRUE CREATIVE MODE
 -- =========================================================
 
 ---------------------------------------------------------
@@ -10,7 +10,6 @@ local HAND_CAPS_SURVIVAL = {
     full_punch_interval = 1.0,
     max_drop_level = 0,
     groupcaps = {
-        -- Level 2 matches your grass blocks exactly
         crumbly = {times = {[1] = 1.50, [2] = 1.20, [3] = 0.80}, uses = 0},
         snappy  = {times = {[1] = 1.00, [2] = 0.70, [3] = 0.40}, uses = 0},
         choppy  = {times = {[1] = 3.00, [2] = 2.00, [3] = 1.50}, uses = 0},
@@ -35,8 +34,6 @@ local HAND_CAPS_CREATIVE = {
 ---------------------------------------------------------
 -- 2. THE GLOBAL OVERRIDE (CRITICAL)
 ---------------------------------------------------------
--- We override the empty hand item "" during mod load.
--- This forces the CLIENT to see the survival times by default.
 minetest.override_item("", {
     wield_image = "cw_hand.png",
     wield_scale = {x = 1, y = 1, z = 1},
@@ -44,59 +41,59 @@ minetest.override_item("", {
 })
 
 ---------------------------------------------------------
--- 3. DYNAMIC TOGGLE & INFINITE STACK FUNCTIONS
+-- 3. DYNAMIC HAND MODE TOGGLE
 ---------------------------------------------------------
-
-local function apply_hand_mode(player)
+local function apply_creative_mode(player)
     if not player or not player:is_player() then return end
     
     local name = player:get_player_name()
     local is_creative = minetest.is_creative_enabled(name)
 
     if is_creative then
-        -- Give the player object "God Mode" powers
+        -- Applies Instabreak (0-time breaking for all groups)
         player:set_properties({
             tool_capabilities = HAND_CAPS_CREATIVE
         })
     else
-        -- Set to NIL for survival. This forces the engine to
-        -- use the tool_capabilities of the hand item we defined in Step 2.
         player:set_properties({
             tool_capabilities = nil
         })
     end
 end
 
--- Function to wrap node placement with infinite stack logic for creative players
-local function infinite_place_node(itemstack, placer, pointed_thing)
-    -- Perform normal node placement
-    local ret = minetest.item_place(itemstack, placer, pointed_thing)
-    
-    -- Check if the player is in creative mode
+-----------------------------------
+-- TRUE GLOBAL INFINITE STACK HOOK 
+-----------------------------------
+minetest.register_on_placenode(function(pos, newnode, placer, oldnode, itemstack, pointed_thing)
     if placer and placer:is_player() then
         local player_name = placer:get_player_name()
         if minetest.is_creative_enabled(player_name) then
-            -- Keep the item stack count at maximum (or prevent decrement)
-            itemstack:set_count(itemstack:get_definition().stack_max or 99)
+            minetest.after(0, function()
+                if placer and placer:is_player() then
+                    local inv = placer:get_inventory()
+                    local WieldedIndex = placer:get_wielded_index()
+                    local current_stack = inv:get_stack("main", WieldedIndex)
+                    
+                    if not current_stack:is_empty() then
+                        current_stack:set_count(current_stack:get_stack_max())
+                        inv:set_stack("main", WieldedIndex, current_stack)
+                    end
+                end
+            end)
         end
     end
-    
-    return ret
-end
+end)
 
 ---------------------------------------------------------
--- 4. HOOKS (Join, UI Toggle & Global Callbacks)
+-- 5. EVENT HOOKS
 ---------------------------------------------------------
-
 minetest.register_on_joinplayer(function(player)
-    -- Multi-stage delay to force the client to sync
-    minetest.after(0.2, apply_hand_mode, player)
-    minetest.after(1.0, apply_hand_mode, player)
+    minetest.after(0.2, apply_creative_mode, player)
+    minetest.after(1.0, apply_creative_mode, player)
 end)
 
 minetest.register_on_player_receive_fields(function(player, formname, fields)
-    -- Trigger on UI buttons or when closing the inventory (fields.quit)
     if fields.creative_toggle or fields.quit then
-        minetest.after(0.1, apply_hand_mode, player)
+        minetest.after(0.1, apply_creative_mode, player)
     end
 end)

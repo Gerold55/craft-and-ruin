@@ -150,14 +150,22 @@ register_staged_crop({
 -- =======================
 register_staged_crop({
   basename = "cw_farming:potato",
-  pretty = "Potatoes",
+  pretty = "Potato",
+
+  -- The potato item itself is now the seed
   seed_name = "cw_farming:potato_raw",
-  seed_tex  = "cw_farming_seed_potato.png",
+  seed_tex  = "cw_farming_potato_raw.png",
+
   stage_textures = {
-    "cw_farming_potato_0.png", "cw_farming_potato_1.png", "cw_farming_potato_2.png", "cw_farming_potato_3.png",
+    "cw_farming_potato_0.png",
+    "cw_farming_potato_1.png",
+    "cw_farming_potato_2.png",
+    "cw_farming_potato_3.png",
   },
+
   base_time = 120,
   groups = { plant=1, cw_crop=1 },
+
   final_drops = {
     {items = {"cw_farming:potato_raw"}, rarity = 1},
     {items = {"cw_farming:potato_raw"}, rarity = 1},
@@ -171,18 +179,17 @@ register_staged_crop({
 register_staged_crop({
   basename = "cw_farming:carrot",
   pretty = "Carrots",
-  seed_name = "cw_farming:seed_carrot",
-  seed_tex  = "cw_farming_seed_carrot.png",
+  seed_name = "cw_farming:carrot_item",
+  seed_tex  = "cw_farming_carrot_item.png",
   stage_textures = {
     "cw_farming_carrot_0.png", "cw_farming_carrot_1.png", "cw_farming_carrot_2.png", "cw_farming_carrot_3.png",
   },
   base_time = 120,
-  groups = { plant=1, cw_crop=1 },
+  groups = { plant=1, cw_crop=1},
   final_drops = {
-    {items = {"cw_farming:carrot"}, rarity = 1},
-    {items = {"cw_farming:carrot"}, rarity = 1},
-    {items = {"cw_farming:carrot"}, rarity = 2},
-    {items = {"cw_farming:seed_carrot"}, rarity = 2},
+    {items = {"cw_farming:carrot_item"}, rarity = 1},
+    {items = {"cw_farming:carrot_item"}, rarity = 1},
+    {items = {"cw_farming:carrot_item"}, rarity = 2},
   }
 })
 
@@ -198,7 +205,28 @@ register_staged_crop({
     "farming_tomato_1.png", "farming_tomato_2.png", "farming_tomato_3.png", "farming_tomato_4.png",
   },
   base_time = 120,
-  groups = { plant=1, cw_crop=1 },
+  groups = { plant=1, cw_crop=1, not_in_creative_inventory=1},
+  final_drops = {
+    {items = {"cw_farming:tomato"}, rarity = 1},
+    {items = {"cw_farming:tomato"}, rarity = 1},
+    {items = {"cw_farming:tomato"}, rarity = 2},
+    {items = {"cw_farming:seed_tomato"}, rarity = 2},
+  }
+})
+
+-- =======================
+-- CABBAGE (4 stages)
+-- =======================
+register_staged_crop({
+  basename = "cw_farming:cabbage",
+  pretty = "Tomatoes",
+  seed_name = "cw_farming:seed_tomato",
+  seed_tex  = "farming_tomato_seed.png",
+  stage_textures = {
+    "farming_tomato_1.png", "farming_tomato_2.png", "farming_tomato_3.png", "farming_tomato_4.png",
+  },
+  base_time = 120,
+  groups = { plant=1, cw_crop=1, not_in_creative_inventory=1},
   final_drops = {
     {items = {"cw_farming:tomato"}, rarity = 1},
     {items = {"cw_farming:tomato"}, rarity = 1},
@@ -214,9 +242,9 @@ register_staged_crop({
   basename = "cw_farming:melon",
   pretty = "Melon",
   seed_name = "cw_farming:seed_melon",
-  seed_tex  = "farming_tomato_seed.png",
+  seed_tex  = "farming_melon_seeds.png",
   stage_textures = {
-    "farming_tomato_1.png", "farming_tomato_2.png", "farming_tomato_3.png", "farming_tomato_4.png",
+    "farming_melon_1.png", "farming_melon_2.png", "farming_melon_3.png", "farming_melon_4.png",
   },
   base_time = 120,
   groups = { plant=1, cw_crop=1 },

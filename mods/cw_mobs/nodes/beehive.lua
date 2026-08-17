@@ -12,11 +12,11 @@ local EXIT_COOLDOWN = 5 -- seconds between releasing bees
 local ANGER_RADIUS = 22
 
 -- textures (rename if needed)
-local TEX_TOP = "cw_mobs_beehive_top.png"
-local TEX_BOTTOM = "cw_mobs_beehive_bottom.png"
-local TEX_SIDE = "cw_mobs_beehive_side.png"
-local TEX_FRONT = "cw_mobs_beehive_front.png"
-local TEX_FRONT_FULL = "cw_mobs_beehive_front_full.png"
+local TEX_TOP = "cw_beehive_top.png"
+local TEX_BOTTOM = "cw_beehive_bottom.png"
+local TEX_SIDE = "cw_beehive_side.png"
+local TEX_FRONT = "cw_beehive_front.png"
+local TEX_FRONT_FULL = "cw_beehive_front_full.png"
 
 -------------------------
 -- Helpers

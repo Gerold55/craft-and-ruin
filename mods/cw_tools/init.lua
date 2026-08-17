@@ -30,10 +30,11 @@ core.register_craftitem(modname .. ":ingot", {
 -- Helper to register a set of tools for a material
 local function register_toolset(material_key, material_name, ingot_item, stats)
     -- stats: table with uses, times (groupcaps times table), full_punch_interval, damage
+    
     -- Sword
     minetest.register_tool(modname .. ":" .. material_key .. "_sword", {
         description = material_name .. " Sword",
-        inventory_image = material_key .. "_sword.png",
+        inventory_image = "tool_" .. material_key .. "axe.png", -- Adjusted texture naming
         tool_capabilities = {
             full_punch_interval = stats.full_punch_interval,
             max_drop_level = 1,
@@ -48,7 +49,7 @@ local function register_toolset(material_key, material_name, ingot_item, stats)
     -- Pickaxe
     minetest.register_tool(modname .. ":" .. material_key .. "_pickaxe", {
         description = material_name .. " Pickaxe",
-        inventory_image = material_key .. "_pickaxe.png",
+        inventory_image = "tool_" .. material_key .. "pick.png",
         tool_capabilities = {
             full_punch_interval = stats.full_punch_interval,
             max_drop_level = 3,
@@ -63,7 +64,7 @@ local function register_toolset(material_key, material_name, ingot_item, stats)
     -- Axe
     minetest.register_tool(modname .. ":" .. material_key .. "_axe", {
         description = material_name .. " Axe",
-        inventory_image = material_key .. "_axe.png",
+        inventory_image = "tool_" .. material_key .. "axe.png",
         tool_capabilities = {
             full_punch_interval = stats.full_punch_interval,
             max_drop_level = 2,
@@ -78,7 +79,7 @@ local function register_toolset(material_key, material_name, ingot_item, stats)
     -- Shovel
     minetest.register_tool(modname .. ":" .. material_key .. "_shovel", {
         description = material_name .. " Shovel",
-        inventory_image = material_key .. "_shovel.png",
+        inventory_image = "tool_" .. material_key .. "shovel.png",
         tool_capabilities = {
             full_punch_interval = stats.full_punch_interval,
             max_drop_level = 1,
